@@ -9,6 +9,8 @@
 
 <p><sub>One HTML file in a browser, or an ESP32-S3 driving a 1.8" ST7735S.</sub></p>
 
+<p><a href="https://luka916.github.io/gloamind/web/eyes.html"><strong>▶ Run it live →</strong></a></p>
+
 </div>
 
 ---
