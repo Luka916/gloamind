@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gloamind · Pixel Eyes</title>
+<style>
+  :root{ --bg:#07090a; --panel:#0e1214; --line:#1c2427; --txt:#8fa3a8; }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--txt);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    display:flex;justify-content:center;align-items:flex-start;
+    gap:30px;padding:28px 22px 60px;min-height:100vh;
+    background-image:radial-gradient(circle at 30% 0%,#0d1a12 0%,#07090a 55%);
+  }
+  h1{font-size:13px;letter-spacing:.22em;color:#3dff7a;font-weight:600;margin:0 0 3px}
+  .sub{font-size:10.5px;color:#4d5c60;margin-bottom:18px;letter-spacing:.05em}
+
+  .device{
+    background:linear-gradient(180deg,#151a1c,#0b0e0f);
+    border:1px solid #232c2f;border-radius:14px;padding:16px 16px 12px;
+    box-shadow:0 24px 60px -20px #000, inset 0 1px 0 #2a3438;
+    position:sticky;top:20px;
+  }
+  .screen-wrap{
+    position:relative;border-radius:6px;overflow:hidden;background:#000a04;
+    box-shadow:0 0 0 2px #0a0f0c, 0 0 44px -6px rgba(61,255,122,.28), inset 0 0 30px rgba(0,0,0,.9);
+  }
+  canvas{display:block;width:560px;height:448px;image-rendering:pixelated;image-rendering:crisp-edges}
+  .glare{position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(140deg,rgba(255,255,255,.055) 0%,transparent 42%);}
+  .tag{margin-top:9px;font-size:10px;color:#3a474b;letter-spacing:.16em;display:flex;justify-content:space-between}
+
+  .panel{width:352px;padding-top:2px}
+  .grp{margin-bottom:16px}
+  .grp-t{font-size:10px;letter-spacing:.18em;color:#39474b;margin-bottom:8px;text-transform:uppercase;
+    display:flex;justify-content:space-between;align-items:center}
+  .grp-t span.hint{color:#2f3b3e;letter-spacing:0;text-transform:none}
+
+  .btns{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .btns.four{grid-template-columns:repeat(4,1fr)}
+  .btns.two{grid-template-columns:1fr 1fr}
+  .btns button{
+    background:#101618;color:#7e9298;border:1px solid #1e2729;
+    border-radius:5px;padding:8px 4px;font-size:10.5px;cursor:pointer;
+    font-family:inherit;letter-spacing:.05em;transition:.14s;text-align:center;line-height:1.35;
+  }
+  .btns button:hover{background:#152024;color:#a8bcc1;border-color:#2b3a3e}
+  .btns button.on{
+    background:rgba(61,255,122,.1);color:#5cff92;border-color:rgba(61,255,122,.45);
+    box-shadow:0 0 14px -3px rgba(61,255,122,.45), inset 0 0 12px -8px #3dff7a;
+  }
+  .btns button .em{font-size:13px;display:block;line-height:1.1;margin-bottom:1px}
+  .btns button .trig{display:block;font-size:8px;color:#566a70;letter-spacing:0;margin-top:2px;line-height:1.2;transition:.14s}
+  .btns button.on .trig{color:#6d8f74}
+
+  .dpad{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:186px}
+  .dpad button{
+    background:#101618;color:#6a7d82;border:1px solid #1e2729;border-radius:5px;
+    height:38px;font-size:14px;cursor:pointer;font-family:inherit;transition:.14s;
+  }
+  .dpad button:hover{background:#152024;color:#a8bcc1}
+  .dpad button.on{background:rgba(61,255,122,.12);color:#5cff92;border-color:rgba(61,255,122,.5)}
+
+  .row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:11px}
+  .row input[type=range]{width:150px;accent-color:#3dff7a;height:3px}
+  .row .val{color:#4cff88;font-variant-numeric:tabular-nums;width:52px;text-align:right;font-size:10.5px}
+  .sw{width:34px;height:17px;border-radius:9px;background:#1b2325;border:1px solid #263034;position:relative;cursor:pointer;transition:.18s;flex:none}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#4a5a5e;transition:.18s}
+  .sw.on{background:rgba(61,255,122,.16);border-color:rgba(61,255,122,.5)}
+  .sw.on::after{left:19px;background:#3dff7a;box-shadow:0 0 8px #3dff7a}
+
+  .note{font-size:10px;line-height:1.8;color:#4b5a5e;border-left:2px solid #1e2a24;padding-left:9px;margin-top:4px}
+  .note b{color:#6bff9e;font-weight:500}
+
+  .actual{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .actual canvas{width:120px;height:96px}
+  .actual-txt{font-size:9.5px;color:#3f4d51;line-height:1.7;letter-spacing:.03em}
+
+  /* ?raw=1 — canvas only, for 1:1 screenshots */
+  body.raw{display:block;padding:0;background:#000;overflow:hidden}
+  body.raw .panel{display:none}
+  body.raw .device{position:fixed;left:0;top:0;padding:0;border:0;background:#000;box-shadow:none;border-radius:0}
+  body.raw .screen-wrap{border-radius:0;box-shadow:none;background:#000}
+  body.raw canvas{width:560px;height:448px}
+  body.raw .tag,body.raw .glare{display:none}
+  /* wink tempo presets */
+  .seg{display:flex;gap:4px;flex:none}
+  .seg button{font-size:10px;padding:3px 9px;border-radius:5px;border:1px solid #1d2a26;
+    background:#0e1512;color:#6b7c76;cursor:pointer;font-family:inherit;transition:.15s}
+  .seg button.on{background:rgba(61,255,122,.12);border-color:rgba(61,255,122,.45);color:#7dffb0}
+  #fpsTag{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen-wrap">
+    <canvas id="c" width="560" height="448"></canvas>
+    <div class="glare"></div>
+  </div>
+  <div class="tag"><span>ST7735S · 160×128 landscape</span><span id="fpsTag">560×448 1:1 · -- fps</span></div>
+</div>
+
+<div class="panel">
+  <h1>GLOAMIND</h1>
+  <div class="sub">18 expressions · idle + triggered · springy question mark</div>
+
+  <div class="grp">
+    <div class="grp-t"><span>Idle · always on</span><span class="hint" id="moodNow">normal</span></div>
+    <div class="btns four" id="moods">
+      <button data-m="normal">DEFAULT<br>default</button>
+      <button data-m="happy"><span class="em">☺️</span>happy</button>
+      <button data-m="smug"><span class="em">😎</span>smug</button>
+      <button data-m="despise"><span class="em">😏</span>despise</button>
+      <button data-m="blink"><span class="em">—</span>blink</button>
+      <button data-m="wink"><span class="em">😜</span>wink</button>
+      <button data-m="peek"><span class="em">👀</span>peek</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t"><span>Triggered · needs a condition</span><span class="hint">never random</span></div>
+    <div class="btns" id="moods2">
+      <button data-m="surprise"><span class="em">😲</span>surprise<span class="trig">sudden noise</span></button>
+      <button data-m="angry"><span class="em">😡</span>angry<span class="trig">repeated pokes</span></button>
+      <button data-m="cry"><span class="em">😭</span>cry<span class="trig">left alone</span></button>
+      <button data-m="dizzy"><span class="em">😵‍💫</span>dizzy<span class="trig">shaken hard</span></button>
+      <button data-m="love"><span class="em">🥰</span>love<span class="trig">head pat</span></button>
+      <button data-m="speechless"><span class="em">😅</span>speechless<span class="trig">odd question</span></button>
+      <button data-m="think"><span class="em">🤔</span>think<span class="trig">got a command</span></button>
+      <button data-m="sleep"><span class="em">😴</span>sleep<span class="trig">idle 5 min</span></button>
+      <button data-m="shy"><span class="em">😳</span>shy<span class="trig">stared at</span></button>
+      <button data-m="confused"><span class="em">😕</span>confused<span class="trig">no idea</span></button>
+      <button data-m="rainbow"><span class="em">🌈</span>rainbow<span class="trig">easter egg</span></button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t"><span>Gaze · 8 directions</span><span class="hint" id="dirNow">center</span></div>
+    <div class="dpad" id="dirs">
+      <button data-d="upLeft">↖</button><button data-d="up">↑</button><button data-d="upRight">↗</button>
+      <button data-d="left">←</button><button data-d="center">•</button><button data-d="right">→</button>
+      <button data-d="downLeft">↙</button><button data-d="down">↓</button><button data-d="downRight">↘</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t">Transition</div>
+    <div class="row"><span>Duration</span><input type="range" id="dur" min="60" max="900" value="260"><span class="val" id="durV">260ms</span></div>
+    <div class="btns two" style="margin-top:6px">
+      <button id="btnWalk">random walk</button>
+      <button id="btnMatrix">cycle all</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t">Dynamics</div>
+    <div class="row"><span>auto blink (2.5–6s)</span><div class="sw on" id="swBlink"></div></div>
+    <div class="row"><span>wink tempo</span>
+      <span class="seg" id="winkSeg"><button data-w="soft" class="on">soft</button><button data-w="lazy">lazy</button></span>
+    </div>
+    <div class="row"><span>breathing brightness</span><div class="sw on" id="swBreath"></div></div>
+    <div class="row"><span>phosphor afterglow</span><div class="sw on" id="swAfter"></div></div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t">Extras <span class="hint">switch off to compare</span></div>
+    <div class="row"><span>love · heart particles</span><div class="sw on" id="swHeart"></div></div>
+    <div class="row"><span>sleep · Zzz</span><div class="sw on" id="swZzz"></div></div>
+    <div class="row"><span>speechless · sweat drop</span><div class="sw on" id="swSweat"></div></div>
+    <div class="row"><span>think · eye size swap</span><div class="sw on" id="swSwap"></div></div>
+    <div class="row"><span>confused · question pop</span><div class="sw on" id="swQ"></div></div>
+    <div class="row"><span>think · three dots</span><div class="sw on" id="swDots"></div></div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t">Colour</div>
+    <div class="row"><span>hue</span><input type="range" id="hue" min="95" max="165" value="146"><span class="val" id="hueV">146</span></div>
+    <div class="row"><span>brightness</span><input type="range" id="lum" min="40" max="130" value="100"><span class="val" id="lumV">100</span></div>
+  </div>
+
+  <div class="actual">
+    <canvas id="c2" width="560" height="448"></canvas>
+    <div class="actual-txt">
+      1:1 actual size<br>
+      this is all the green a 1.8" panel gives you
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:12px">
+    <b>Hearts are a particle system:</b> each one has its own birth frame, initial velocity, sway phase, size and tint, and is destroyed when its life runs out. Capped at 18 alive at any moment, so it never grows without bound.
+  </div>
+</div>
+
+<script>
+const P=14, W=40*P, H=32*P;     // 560x448 internal, 14px per cell; positions resolve to 1 screen pixel
+const S=P/4;                     // pixel scale relative to the original 160x128 build (P was 4 then).
+                                 // The heart bitmap and the Zzz glyphs were sized in raw pixels,
+                                 // so they scale with P or they look shrunken on the bigger canvas.
+const COLS=12;
+// ============ Palette ============
+// Hook a colour picker in later: edit the numbers here, the render code stays untouched.
+// h/s/l = hue / saturation / lightness(%); rgb arrays = 0~255.
+const THEME = {
+  eye:    { h:146, s:100, l:56 },     // eye body (lightness is scaled again by the brightness slider)
+  glow:   { h:146, s:100, l:92 },     // highlight along the top edge of the eyelid
+  icon:   { h:146, s:100 },           // question mark / dots / Zzz (brightness per icon; hue+sat fixed here)
+  heart:  ['#ff7ca6','#ff4d7d','#ffb3cc','#ffd9e6','#ff8fb4','#5cff92'],  // six heart tints
+  blush:  [255,118,164],              // shy blush
+  tear:   [120,205,245],              // tears / sweat
+  tearHi: [190,245,255],              // tear highlight
+  base:   '#000803'                   // opaque backing so nothing shows through the eye
+};
+const EYE_BASE = THEME.base;
+const rgba_ = (c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+// move the main hue and eye / highlight / icon all follow, keeping the set monochrome
+function applyHue(h){ THEME.eye.h=h; THEME.glow.h=h; THEME.icon.h=h; }
+
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+const c2=document.getElementById('c2'), ctx2=c2.getContext('2d');
+
+const EYE_CX={L:14, R:26};
+const EYE_CY=16;
+
+/* ============ Shape helpers ============ */
+const inW = (i,w)=> Math.abs(i-5.5) < w/2 - 0.001;
+
+function mk(tf,bf){
+  const top=[],bot=[];
+  for(let i=0;i<COLS;i++){ top.push(tf(i)); bot.push(bf(i)); }
+  return {top,bot};
+}
+
+// straight bar
+function solid(w,h,dy=0){
+  return mk(
+    i=> inW(i,w) ? (-h/2+dy) : 99,
+    i=> inW(i,w) ? ( h/2+dy) : -99
+  );
+}
+
+// vertical bar with a narrower cap: body w cells wide, top ch rows narrowed to cw cells
+function cap(w,h,cw,ch,dy=0){
+  return mk(
+    i=> !inW(i,w) ? 99 : (inW(i,cw) ? (-h/2+dy) : (-h/2+ch+dy)),
+    i=> !inW(i,w) ? -99 : ( h/2+dy)
+  );
+}
+
+// slanted top edge, flat bottom
+function wedge(w,h,slope,dy=0){
+  return mk(
+    i=> inW(i,w) ? (-h/2+dy+slope*(i-5.5)) : 99,
+    i=> inW(i,w) ? ( h/2+dy) : -99
+  );
+}
+
+function slant(w,h,slope,dy=0){
+  return mk(
+    i=> inW(i,w) ? (-h/2+dy+slope*(i-5.5)) : 99,
+    i=> inW(i,w) ? ( h/2+dy+slope*(i-5.5)) : -99
+  );
+}
+
+function droop(w,dy=0){
+  return mk(
+    i=> inW(i,w) ? (-7+dy) : 99,
+    i=> inW(i,w) ? (3+5*(1-Math.abs(i-5.5)/3.2)+dy) : -99
+  );
+}
+
+function pair(L,R,opt={}){
+  return {L, R, dx:opt.dx||0, dy:opt.dy||0, lx:opt.lx||0, rx:opt.rx||0,
+          ldy:opt.ldy||0, rdy:opt.rdy||0, decor:opt.decor||null};
+}
+function sym(s,opt={}){ return pair(s,s,opt); }
+
+/* ============ Expression table ============ */
+const CAP_EYE = ()=> cap(6,14,4,3);      // narrow platform on top + straight bar
+
+const MOODS = {
+  normal:     sym(solid(6,14)),
+  blink:      sym(solid(6,1,-0.5)),                                       // closed = one horizontal line
+  happy:      sym(CAP_EYE()),                                          // the classic happy arc
+  surprise:   pair(solid(8,24), solid(8,24), {lx:-1, rx:1}),          // surprise: both wide, 6-cell gap
+  rainbow:    sym(solid(6,14), {decor:'rainbow'}),                    // easter egg: rainbow flow
+  shy:        pair(solid(5,11), solid(5,11), {lx:0.6, rx:-0.6, decor:'shy'}),   // shy: smaller, pulled in + blush
+  smug:       pair(solid(6,13), solid(6,10), {ldy:-0.9, rdy:0.9, decor:'smug'}), // smug: one bigger, one higher
+  confused:   pair(solid(7,12), solid(5,10), {lx:-0.4, rx:0.4, decor:'confused'}), // confused: asymmetric drift
+  wink:       pair(solid(6,14), solid(6,14), {decor:'wink'}),                  // wink: one eye shuts
+  peek:       pair(solid(6,14), solid(6,14), {decor:'peek'}),                  // peek: the pair slides sideways
+  angry:      pair(wedge(6,10, 0.64), wedge(6,10,-0.64)),            // flat bottom, slanted top - V brows
+  despise:    pair(wedge(6,10, 0.62), wedge(6,10, 0.62)),            // despise: both slanted the same way
+  cry:        pair(droop(6), droop(6), {decor:'tear'}),
+  love:       sym(CAP_EYE(), {decor:'hearts'}),                        // happy arc + heart particles
+  speechless: pair(solid(6,10), solid(6,10), {decor:'sweat'}),
+  think:      pair(solid(6,11,-2), solid(6,6,-2), {dy:-1, decor:'swap'}),
+  dizzy:      pair(solid(6,9), solid(6,9), {decor:'shake'}),
+  sleep:      pair(solid(6,1,-0.5), solid(6,1,-0.5), {decor:'zzz'})          // closed lines + Zzz
+};
+
+const THINK_A = pair(solid(6,11,-2), solid(6,6,-2), {dy:-1});
+const THINK_B = pair(solid(6,6,-2), solid(6,11,-2), {dy:-1});
+
+const DIRS = {
+  center:[0,0],
+  up:[0,-3.2], upRight:[2.6,-2.6], right:[3.2,0], downRight:[2.6,2.6],
+  down:[0,3.2], downLeft:[-2.6,2.6], left:[-3.2,0], upLeft:[-2.6,-2.6]
+};
+
+/* ============ State ============ */
+let state={ blinkOn:true, breath:true, after:true,
+            heart:true, zzz:true, sweat:true, swapThink:true,
+            qmark:true, dots:true, hue:146, lum:100 };
+let dur=260;
+
+let curMood = cloneMOOD(MOODS.normal);
+let tgtMood = cloneMOOD(MOODS.normal);
+let moodT = 1, moodName='normal';
+
+let curDir=[0,0], tgtDir=[0,0], dirT=1;
+let blinkAmt=0, blinkPhase=-1, nextBlink=200, doubleBlink=0;
+let frozen=false, fixFrame=null, thinkEnter=null, swFix=null, blinkFix=null, qEnter=null;
+let peekOff=0, peekEnter=null;   // peek horizontal offset: actual value + entry frame (phase starts at 0)
+
+function cloneMOOD(m){
+  return {
+    L:{top:m.L.top.slice(), bot:m.L.bot.slice()},
+    R:{top:m.R.top.slice(), bot:m.R.bot.slice()},
+    dx:m.dx, dy:m.dy, lx:m.lx, rx:m.rx, ldy:m.ldy||0, rdy:m.rdy||0, decor:m.decor
+  };
+}
+function lerpArr(a,b,k){ const o=new Array(a.length); for(let i=0;i<a.length;i++) o[i]=a[i]+(b[i]-a[i])*k; return o; }
+function lerpMOOD(A,B,k){
+  return {
+    L:{top:lerpArr(A.L.top,B.L.top,k), bot:lerpArr(A.L.bot,B.L.bot,k)},
+    R:{top:lerpArr(A.R.top,B.R.top,k), bot:lerpArr(A.R.bot,B.R.bot,k)},
+    dx:A.dx+(B.dx-A.dx)*k, dy:A.dy+(B.dy-A.dy)*k,
+    lx:A.lx+(B.lx-A.lx)*k, rx:A.rx+(B.rx-A.rx)*k,
+    ldy:A.ldy+(B.ldy-A.ldy)*k, rdy:A.rdy+(B.rdy-A.rdy)*k,
+    decor: k<0.5 ? A.decor : B.decor
+  };
+}
+const ease = k => k<0.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2;
+
+function liveMood(){ return lerpMOOD(curMood,tgtMood,ease(Math.min(1,moodT))); }
+
+/* Which phase the "think" size-swap is sitting at:
+   0 = left big / right small, 1 = left small / right big, swinging like a pendulum.
+   If you switch away mid-swing, what is on screen has nothing to do with the canonical
+   pose recorded in curMood, so interpolating to the next expression snaps first. Bake it in. */
+function thinkSwapK(){
+  if(!state.swapThink || moodName!=='think') return null;
+  if(swFix!==null) return swFix;
+  if(thinkEnter===null) return null;
+  return (1-Math.cos((frame-thinkEnter)/14))/2;
+}
+
+function setMood(name,d){
+  if(!MOODS[name]) return;
+  curMood = liveMood();
+  // leaving "think": use the current swing position as the transition start, so it carries
+  // on from wherever it is instead of snapping back to the canonical pose and then moving.
+  const k = thinkSwapK();
+  if(k!==null){
+    const s = lerpMOOD(THINK_A, THINK_B, k);
+    curMood.L=s.L; curMood.R=s.R;
+    curMood.lx=s.lx; curMood.rx=s.rx; curMood.ldy=s.ldy; curMood.rdy=s.rdy;
+    curMood.dx=s.dx; curMood.dy=s.dy;
+  }
+  tgtMood = cloneMOOD(MOODS[name]);
+  moodT = 0; dur = d || dur;
+  moodName = name;
+  thinkEnter = null;
+  peekEnter = null;                     // every entry into peek starts from "not yet leaning out"
+  qEnter = null;                        // every entry into confused pops the question mark from scratch
+  document.getElementById('moodNow').textContent = name;
+}
+function setDir(name,d){
+  if(!DIRS[name]) return;
+  curDir = [curDir[0]+(tgtDir[0]-curDir[0])*ease(Math.min(1,dirT)),
+            curDir[1]+(tgtDir[1]-curDir[1])*ease(Math.min(1,dirT))];
+  tgtDir = DIRS[name].slice();
+  dirT = 0; dur = d || dur;
+  document.getElementById('dirNow').textContent = name;
+}
+
+/* ============ Drawing ============ */
+/* Colour string cache: `bright` drifts every frame, and we used to build a fresh hsla
+   string per cell and hand it to fillStyle - thousands of colour parses per frame. Quantising
+   to 1/32 is invisible to the eye, and with the cache it costs almost nothing. */
+const _colCache = new Map();
+function clearColCache(){ _colCache.clear(); }
+function col(a){
+  const q = Math.round(a*32)/32;
+  let s = _colCache.get(q);
+  if(s!==undefined) return s;
+  const c=THEME.eye, l=state.lum/100;
+  s = `hsla(${c.h},${c.s}%,${Math.min(96,c.l*l)}%,${q})`;
+  if(_colCache.size>256) _colCache.clear();
+  _colCache.set(q,s);
+  return s;
+}
+
+function drawEye(g,shape,cx,dx,dy,bright,rainbow){
+  let lo=99, hi=-1, minTop=99;
+  for(let i=0;i<COLS;i++){ if(shape.top[i]<=shape.bot[i]){ if(i<lo)lo=i; if(i>hi)hi=i; if(shape.top[i]<minTop)minTop=shape.top[i]; } }
+  if(hi<0) return;
+  const mT = Math.round(minTop+dy+EYE_CY);   // cell row, only used to test the top edge
+
+  for(let i=lo;i<=hi;i++){
+    const t=shape.top[i], b=shape.bot[i];
+    if(t>b) continue;
+    const edgeK = (i===lo||i===hi) ? 0.58 : 1;
+
+    /* Sub-pixel positioning: multiply the cell index by P first, then round.
+       We used to write Math.round(cell)*P - positions quantised to a whole cell (14px),
+       so any pan or bob jumped a full cell at a time. That was the stutter.
+       Now the unit is one screen pixel; blocks stay hard-edged at 14px, shape unchanged. */
+    const x  = Math.round((cx-6+i+dx)*P);
+    const yT = Math.round((t+dy+EYE_CY)*P);
+    const yB = Math.round((b+dy+EYE_CY)*P) + P;
+    if(yB<=yT) continue;
+
+    const t0 = Math.round(t+dy+EYE_CY), b0 = Math.round(b+dy+EYE_CY);   // cell rows, for the checks below
+
+    // (1) opaque base first: the eye is solid, no particle shows through it
+    g.fillStyle = EYE_BASE;
+    g.fillRect(x, yT, P, yB-yT);
+
+    // (2) top highlight is a single row
+    let y = yT, row = t0;
+    if((b0-t0)>4 && t0 <= mT+1){
+      g.fillStyle = `hsla(${THEME.glow.h},${THEME.glow.s}%,${Math.min(97,THEME.glow.l*bright)}%,0.97)`;
+      g.fillRect(x, yT, P, P);
+      y = yT + P; row = t0 + 1;
+    }
+    if(y>=yB) continue;
+
+    // (3) the rest is one flat column - a single stroke
+    if(rainbow){
+      // rainbow band: hue advances along columns and rows plus time, giving a diagonal flow
+      for(let yy=y; yy<yB; yy+=P){
+        g.fillStyle = `hsla(${(frame*4 + (cx-6+i)*22 + row*9 + 600) % 360},100%,${Math.min(74,62*bright)}%,1)`;
+        g.fillRect(x, yy, P, Math.min(P, yB-yy));
+        row++;
+      }
+    } else {
+      g.fillStyle = col(bright*edgeK);
+      g.fillRect(x, y, P, yB-y);
+    }
+  }
+}
+
+/* ============ Heart particles ============ */
+// 4x4 cell pixel heart (bit pattern)
+const HEART7 = [
+  ".##.##.",
+  "#######",
+  "#######",
+  "#######",
+  ".#####.",
+  "..###..",
+  "...#..."
+];
+const HEART_COL = THEME.heart;   // palette lives in THEME
+const MAXP = 12;
+let parts = [], heartNext = 0;
+// Overall opacity: fades in on entering "love", fades out on leaving.
+// We used to stop drawing the moment `decor` changed, so hearts already in the air vanished
+// at once (most obvious switching to rainbow, where the whole eye changes colour).
+let heartFade = 1;
+// Only fade on exit if we actually entered "love": 7 particles are pre-seeded so entering
+// "love" is not empty, and they must not drift out by themselves on a fresh page.
+let heartOn = false;
+
+function hexA(hex,a){
+  const n = parseInt(hex.slice(1),16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+
+function spawnHeart(birth){
+  const r = Math.random();
+  let y0;
+  if(r < 0.60)      y0 = 32 + Math.random()*3;        // below the screen, out of sight
+  else if(r < 0.86) y0 = 18 + Math.random()*14;       // lower half of the eye -> bottom of screen
+  else              y0 = 6  + Math.random()*12;       // around the middle of the eye
+
+  const vy   = -(0.30 + Math.random()*0.16);          // 0.30~0.46 cells per frame
+  const life = Math.round((y0-2)/Math.abs(vy) * 1.18);
+
+  parts.push({
+    birth: birth,
+    x0: 2 + Math.random()*34,
+    y0: y0,
+    vy: vy,
+    amp: 0.10 + Math.random()*0.16,                   // sway half-amplitude (cells)
+    ph:  Math.random()*Math.PI*2,
+    fr:  0.07 + Math.random()*0.06,                   // sway frequency
+    unit: Math.round((Math.random()<0.55 ? 2 : 3) * S),
+    col: HEART_COL[Math.random()<0.06 ? 5 : Math.floor(Math.random()*5)],
+    life: life
+  });
+}
+
+// already looping on page load, no 2s wait for the first heart
+for(let i=0;i<7;i++) spawnHeart(-Math.random()*60);
+
+// brightness from its own lifetime alone (exit fade not included)
+function heartAlpha(p){
+  const age = frame - p.birth;
+  if(age < 0) return 0;
+  const t = age / p.life;
+  if(t < 0 || t >= 1) return 0;
+  let a = t<0.16 ? t/0.16 : (t>0.58 ? 1-(t-0.58)/0.42 : 1);
+  const y = p.y0 + p.vy*age;
+  if(y < 6) a *= Math.max(0, (y-1)/5);         // vanish before the top edge clips it
+  return a;
+}
+
+function updateHearts(spawn=true){
+  // spawn: every 15~30 frames, max 12 alive; no respawn during exit, no recycling either
+  if(spawn){
+    if(heartNext<=0 && parts.length<MAXP){
+      spawnHeart(frame);
+      heartNext = 15 + Math.random()*16;
+    }
+    heartNext--;
+    // recycle: expired ones are dropped
+    for(let i=parts.length-1;i>=0;i--){
+      if(frame - parts[i].birth > parts[i].life) parts.splice(i,1);
+    }
+  }
+}
+
+function drawHearts(g, fade=1){
+  if(fade<=0.01) return;
+  for(const p of parts){
+    const age = frame - p.birth;
+    if(age < 0) continue;
+
+    // On exit drop the upward speed to 1/5 so hearts hang in the air and dim in place,
+    // instead of flying on and being covered by the eye (which still reads as "suddenly gone").
+    const ae = p.exitAge!==undefined ? p.exitAge + (age - p.exitAge)*0.20 : age;
+
+    const y = p.y0 + p.vy*ae;
+    if(y < -4 || y > 34) continue;
+    const x = p.x0 + Math.sin(ae*p.fr + p.ph) * p.amp * 4;
+
+    // On exit freeze the brightness they had at the exit frame and let only the global fade
+    // move. Otherwise most hearts are already near the top and very dim, and another fade on
+    let a = p.exitA !== undefined ? p.exitA : heartAlpha(p);
+    a *= fade;
+    if(a < 0.02) continue;
+
+    const px = Math.round(x*P), py = Math.round(y*P);
+    if(px < -4*P || px > W+4*P) continue;
+
+    g.fillStyle = hexA(p.col, Math.min(1,a)*0.95);
+    const u = p.unit;
+    for(let r=0;r<7;r++){
+      for(let q=0;q<7;q++){
+        if(HEART7[r][q]==='#') g.fillRect(px+q*u, py+r*u, u, u);
+      }
+    }
+  }
+}
+
+/* ============ Zzz ============ */
+const Z5 = [
+  "#####",
+  "...#.",
+  "..#..",
+  ".#...",
+  "#####"
+];
+
+function drawBits(g, bits, gx, gy, unit, colorStr){
+  g.fillStyle = colorStr;
+  const ox = Math.round(gx*P), oy = Math.round(gy*P);
+  for(let r=0;r<bits.length;r++){
+    for(let q=0;q<bits[r].length;q++){
+      if(bits[r][q]==='#') g.fillRect(ox + q*unit, oy + r*unit, unit, unit);
+    }
+  }
+}
+
+function drawZzz(g,ddx,ddy,sh){
+  const T = 270;                                   // ~4.5s per round
+  const cyc = frozen && fixFrame!==null ? 0.42 : (frame % T)/T;
+  const rise = cyc * 1.0;
+
+  // follows the eye at about a third of its amplitude, clamped so it never leaves the panel
+  const fx = Math.max(-1.9, Math.min(1.9, ddx*0.52 + (sh.dx||0)*0.35));
+  const fy = Math.max(-1.3, Math.min(1.3, ddy*0.35 + (sh.dy||0)*0.35));
+
+  let fade = 1;
+  if(cyc > 0.76) fade = Math.max(0, 1-(cyc-0.76)/0.24);
+
+  // diagonal, lower-left to upper-right; biggest at the bottom-left, smallest at the top-right
+  const list = [
+    {x:29.6, y:10.0, t0:0.03, t1:0.13, u:3.2*S},   // bottom-left, largest
+    {x:32.6, y: 6.6, t0:0.19, t1:0.29, u:2.7*S},
+    {x:35.2, y: 3.7, t0:0.34, t1:0.44, u:2.3*S}    // top-right, smallest
+  ];
+
+  for(let i=0;i<list.length;i++){
+    const z = list[i];
+    let a = cyc < z.t0 ? 0 : (cyc < z.t1 ? (cyc-z.t0)/(z.t1-z.t0) : 1);
+    a *= fade;
+    if(a <= 0.02) continue;
+    const gx = z.x + fx + Math.sin(cyc*7 + i)*0.22;
+    const gy = z.y - rise + fy;
+    if(gy < 0) continue;
+    drawBits(g, Z5, gx, gy, z.u, `hsla(${THEME.icon.h},${THEME.icon.s}%,78%,${a})`);
+  }
+}
+
+/* ============ Confused - question mark pop ============ */
+// The whole glyph scales on one under-damped spring: 0 -> 123% peak -> 95% -> settles at 100%.
+// At this resolution we cannot warp the image, so block edge length (4/5/6px) plus non-uniform
+const Q = (()=>{
+  const cx=34.10, cy=4.60, r=1.70;
+  const A0=178, A1=392, NA=26;
+  const pts=[];
+  for(let i=0;i<=NA;i++){
+    const u=i/NA, a=(A0+(A1-A0)*u)*Math.PI/180;
+    pts.push([cx+Math.cos(a)*r, cy+Math.sin(a)*r]);
+  }
+  const ex=cx+Math.cos(A1*Math.PI/180)*r, ey=cy+Math.sin(A1*Math.PI/180)*r;
+  const tx=34.70, ty=7.45, NB=7;
+  for(let i=1;i<=NB;i++){
+    const u=i/NB;
+    pts.push([ex+(tx-ex)*u, ey+(ty-ey)*u]);
+  }
+  // scale anchor near the bottom edge, so it grows upward instead of into the eye
+  return { pts, dot:[34.70, 9.05], ax:34.10, ay:8.75 };
+})();
+
+function drawQ(g,kx,ky,ox,oy,alpha){
+  if(alpha<=0.02 || kx<=0.03 || ky<=0.03) return;
+  const w=Math.max(1,Math.round(P*kx)), h=Math.max(1,Math.round(P*ky));
+  const ax=Q.ax, ay=Q.ay, pts=Q.pts;
+
+  g.fillStyle=`hsla(${THEME.icon.h},${THEME.icon.s}%,74%,${Math.min(1,alpha)})`;
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];
+    const X=ax+(p[0]-ax)*kx+ox, Y=ay+(p[1]-ay)*ky+oy;
+    g.fillRect(Math.round(X*P)-(w>>1), Math.round(Y*P)-(h>>1), w, h);
+  }
+  // the tip is one step brighter, like a specular highlight
+  const d=Q.dot;
+  g.fillStyle=`hsla(${THEME.icon.h},${THEME.icon.s}%,93%,${Math.min(1,alpha)})`;
+  g.fillRect(Math.round((ax+(d[0]-ax)*kx+ox)*P)-(w>>1),
+             Math.round((ay+(d[1]-ay)*ky+oy)*P)-(h>>1), w, h);
+}
+
+  // cycle lengths vary so it never repeats on a mechanical 3s beat
+const Q_CYC=[152,206,168,232,188], Q_TOTAL=946;
+function qPhase(t){
+  let u=((t%Q_TOTAL)+Q_TOTAL)%Q_TOTAL, i=0;
+  while(u>=Q_CYC[i]){ u-=Q_CYC[i]; i++; }
+  return {t:u, period:Q_CYC[i]};
+}
+
+  // spring step response: wn=19 rad/s, zeta=0.50 -> 116% at 0.19s, 95% at 0.38s, settled by 0.75s
+function qSpring(t, period){
+  const WN=19/60, ZETA=0.50;
+  const WD=WN*Math.sqrt(1-ZETA*ZETA), DZ=ZETA*WN;
+  const k = 1 - Math.exp(-DZ*t)*(Math.cos(WD*t)+(DZ/WD)*Math.sin(WD*t));
+
+  const j = (k-1)*0.22;               // stretch on overshoot, squash on the rebound - the jelly feel
+  let kx=k*(1-j), ky=k*(1+j);
+  let a=1, y=0, wob=0;
+
+  // one light sideways wobble after it lands, exponentially damped
+  if(t>18){
+    const u=t-18;
+    wob = 0.42*Math.exp(-u/9)*Math.sin(u*0.58);
+  }
+
+  // finish: shrink + drift up + fade
+  const outStart=period-15;
+  if(t>=outStart){
+    const u=Math.min(1,(t-outStart)/15);
+    const s=1-0.78*Math.pow(u,1.25);
+    kx*=s; ky*=s;
+    a=1-Math.pow(u,1.15);
+    y=-1.15*u;
+    wob*=1-u*0.6;
+  }
+  return {kx,ky,a,y,wob};
+}
+
+/* ============ Think - three dots ============ */
+// Same idea as Material / iMessage typing indicators: three dots 2pi/3 out of phase,
+// each lifted by a sine, growing brighter and larger at the peak so it reads as a wave.
+function drawDots(g,ox,oy,alpha){
+  if(alpha<=0.02) return;
+  const baseX=30.40, baseY=5.45, gap=3.05;
+  for(let k=0;k<3;k++){
+    const ph=frame*0.104 - k*2.094;             // 1/3 cycle apart, lifting in sequence
+    const s=Math.max(0,Math.sin(ph));
+    const e=s*s*(3-2*s);                       // smoothstep, snappier rise and fall
+    const x=baseX+k*gap+ox;
+    const y=baseY-e*1.25+oy;
+    const sz=1.02+0.72*e;                      // 4.1px → 7.0px
+    const a=alpha*(0.52+0.48*e);
+    g.fillStyle=`hsla(${THEME.icon.h},${THEME.icon.s}%,${64+28*e}%,${Math.min(1,a)})`;
+    g.fillRect(Math.round((x-sz/2)*P), Math.round((y-sz/2)*P), Math.round(sz*P), Math.round(sz*P));
+  }
+}
+
+let frame=0;
+
+/* ---- Time base: convert real elapsed time into "60fps frame numbers" ----
+   We used to hardcode dtMs=1000/60 and frame++ per tick, which tied animation speed to the
+   refresh rate: twice as fast on a 120Hz panel, half speed when frames drop.
+   Now we advance by real milliseconds, so speed matches everywhere. */
+const STEP_MS = 1000/60;
+let _lastTs = 0, _accMs = 0, _fpsN = 0, _fpsT = 0;
+
+function render(ts){
+  if(ts === undefined) ts = performance.now();
+
+  let steps = 1;
+  if(frozen && fixFrame!==null){
+    frame = fixFrame;                        // screenshot mode: lock the frame number
+  } else {
+    if(!_lastTs) _lastTs = ts;
+    let dt = ts - _lastTs; _lastTs = ts;
+    if(dt > 120) dt = 120;                   // do not catch up dozens of frames after a tab switch
+    _accMs += dt;
+    if(_accMs < STEP_MS - 1){                // high refresh: not a full logical frame yet, skip the redraw
+      requestAnimationFrame(render); return;
+    }
+    steps = Math.min(2, Math.max(1, Math.floor(_accMs/STEP_MS)));
+    _accMs -= steps*STEP_MS;
+  }
+
+  if(state.after){ ctx.fillStyle='rgba(0,6,3,0.34)'; }
+  else { ctx.fillStyle='#000a04'; }
+  ctx.fillRect(0,0,W,H);
+
+  const dtMs = steps*STEP_MS;                // logical time actually advanced this frame
+  if(!frozen && moodT<1) moodT = Math.min(1, moodT + dtMs/dur);
+  if(!frozen && dirT<1)  dirT  = Math.min(1,  dirT  + dtMs/dur);
+
+  let sh = liveMood();
+
+  // think: eye size swap
+  if(state.swapThink && moodName==='think'){
+    if(thinkEnter===null && moodT>=1) thinkEnter = frame;
+    const k = thinkSwapK();
+    if(k!==null){
+      sh = lerpMOOD(THINK_A, THINK_B, k);
+      sh.decor = 'swap';
+    }
+  }
+
+  const ddx = curDir[0]+(tgtDir[0]-curDir[0])*ease(Math.min(1,dirT));
+  const ddy = curDir[1]+(tgtDir[1]-curDir[1])*ease(Math.min(1,dirT));
+
+  // peek: slow sideways drift - lean out, pull back a little, lean out again, hold, swap sides
+  // This offset used to be added straight to ex: landing on phase 0.3 jumped from 3.0, so
+  // entering from another expression snapped, and leaving snapped back to centre.
+  // Now it lives in peekOff: target from the phase, actual value follows smoothly.
+  let peekTgt = 0;
+  if(moodName==='peek'){
+    if(peekEnter===null) peekEnter = frame;
+    const pt = ((frame - peekEnter) % 380)/380;
+    if(pt<0.16)        peekTgt = 3.0*ease(pt/0.16);
+    else if(pt<0.21)   peekTgt = 3.0 - (pt-0.16)/0.05*0.7;
+    else if(pt<0.27)   peekTgt = 2.3 + (pt-0.21)/0.06*0.7;
+    else if(pt<0.46)   peekTgt = 3.0;
+    else if(pt<0.56)   peekTgt = 3.0*(1-(pt-0.46)/0.10);
+    else if(pt<0.64)   peekTgt = -2.2*ease((pt-0.56)/0.08);
+    else if(pt<0.84)   peekTgt = -2.2;
+    else               peekTgt = -2.2*(1-(pt-0.84)/0.16);
+  }
+  peekOff += (peekTgt - peekOff) * (1 - Math.pow(0.80, steps));
+  const ex = ddx + peekOff;
+
+  /* "blink" and "sleep" are already a single line - stacking auto-blink on top gives a line
+     that jitters up and down, which reads as broken. So when the shape is already closed,
+     auto-blink stops. On leaving, re-roll the timer so we do not blink on reopening. */
+  const eyesShut = (moodName==='blink' || moodName==='sleep');
+  if(state.blinkOn && !eyesShut){
+    nextBlink -= steps;
+    if(nextBlink<=0 && blinkPhase<0){ blinkPhase=0; doubleBlink = Math.random()<0.20 ? 1 : 0; }
+    if(blinkPhase>=0){
+      blinkPhase += steps/24;                   // a full blink is 24 frames, ~400ms
+      if(blinkPhase>=1){
+        blinkPhase=-1; blinkAmt=0;
+        if(doubleBlink>0){ doubleBlink--; nextBlink = 8; }        // occasionally twice in a row
+        else nextBlink = 150+Math.floor(Math.random()*210);       // next one in 2.5~6s
+      } else blinkAmt = blinkCurve(blinkPhase);
+    }
+  } else {
+    blinkAmt=0; blinkPhase=-1;
+    if(eyesShut) nextBlink = 150+Math.floor(Math.random()*210);   // re-roll after reopening
+  }
+  if(blinkFix!==null) blinkAmt = blinkFix;      // debug: ?bl=0.5 freezes the eyelid at that portion
+
+  let bright = state.breath ? 0.84+0.16*Math.sin(frame/48) : 1;
+
+  let jx=0, jy=0;
+  if(sh.decor==='shake'){
+    jx = (Math.random()-0.5)*0.9;
+    jy = (Math.random()-0.5)*0.9;
+  }
+
+  // ---- per-expression idle motion ----
+  let winkL=0, winkR=0, sqL=blinkAmt, sqR=blinkAmt;
+
+  if(sh.decor==='shy'){
+    // occasional quick squint: 8th power makes a short spike
+    sqL = sqR = Math.min(0.95, blinkAmt + Math.pow(Math.max(0,Math.sin(frame/72)),8)*0.20);
+  }
+  if(sh.decor==='smug'){
+    // squint every 4.7s, down to 55%
+    const m = Math.pow(Math.max(0,Math.sin(frame/45)),14)*0.42;
+    sqL = Math.min(0.95, blinkAmt + m);
+    sqR = Math.min(0.95, blinkAmt + m*1.15);
+  }
+  if(sh.decor==='confused'){
+    // the two eyes bob at different frequencies - that is where the confusion comes from
+    sh.ldy = Math.sin(frame/58)*0.85;
+    sh.rdy = Math.sin(frame/79+1.7)*0.85;
+  }
+  if(sh.decor==='wink'){
+    // One cycle covers left eye only, then right eye only, each running close-hold-open-rest,
+    // starting and ending with both eyes open. The close curve and the swap timer used to be
+    // incommensurate cycles (200 / 300), so they collided and hard-cut mid-close.
+    const wt = (frame % WINK.period)/WINK.period;
+    if(wt < 0.5) winkL = winkCurve(wt);
+    else         winkR = winkCurve(wt-0.5);
+  }
+
+  const L = blinkShape(sh.L, Math.min(1, sqL+winkL));
+  const R = blinkShape(sh.R, Math.min(1, sqR+winkR));
+
+  // ---- hearts: drawn first, bottom layer, covered by the eye ----
+  // Test against moodName (target expression), not sh.decor (the interpolating one): decor
+  // flips only past the halfway point, so the first half kept hearts at full brightness and
+  // the fade started halfway through - switching to rainbow, where the whole eye changes
+  // colour, that breakpoint read as "gone in a flash". Keying on the target starts the fade
+  const wantHearts = moodName==='love' && state.heart;
+  if(wantHearts){
+    heartOn = true;
+    heartFade = Math.min(1, heartFade + steps*0.060);     // fade in ~0.28s
+    for(const p of parts){ p.exitA = undefined; p.exitAge = undefined; }  // back to normal lifetime
+    if(!frozen) updateHearts(true);
+  } else if(heartOn && parts.length){
+    heartFade = Math.max(0, heartFade - steps*0.055);    // fade out ~0.30s - short is right
+    for(const p of parts){
+      if(p.exitA===undefined){                            // first exit frame: pin current brightness
+        const own = heartAlpha(p);
+        if(own > 0.01){ p.exitA = Math.max(own, 0.45); p.exitAge = frame - p.birth; }
+      }
+    }
+  }
+  if(heartOn && parts.length){
+    drawHearts(ctx, heartFade);
+    if(heartFade<=0){ parts.length = 0; heartOn = false; }  // reclaim only once fully faded
+  }
+
+  const rb = sh.decor==='rainbow' && moodT>0.35;
+  drawEye(ctx, L, EYE_CX.L+sh.lx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.ldy||0), bright, rb);
+  drawEye(ctx, R, EYE_CX.R+sh.rx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.rdy||0), bright, rb);
+
+  // ---- tears ----
+  if(sh.decor==='tear'){
+    const cyc = (frame%96)/96;
+    for(let k=0;k<2;k++){
+      const ph = (cyc + k*0.5)%1;
+      if(ph>0.8) continue;
+      const y0 = EYE_CY + sh.dy + 6;
+      const y = y0 + ph*7;
+      const a = 0.92 - 0.55*(ph/0.8);
+      ctx.fillStyle = rgba_(THEME.tearHi, a);
+      for(const cx of [EYE_CX.L-0.5, EYE_CX.R-0.5]){
+        ctx.fillRect(Math.round((cx+ddx)*P), Math.round(y*P), P*2, P*3);
+      }
+    }
+  }
+
+  // ---- shy blush ----
+  if(sh.decor==='shy'){
+    ctx.fillStyle = rgba_(THEME.blush, 0.85);
+    for(const cx of [EYE_CX.L-3.8, EYE_CX.R+0.8]){
+      ctx.fillRect(Math.round((cx+ex)*P), Math.round((EYE_CY+7.6+sh.dy)*P), P*3, P);
+    }
+  }
+
+  // ---- Zzz ----
+  if(sh.decor==='zzz' && state.zzz){
+    drawZzz(ctx, ddx, ddy, sh);
+  }
+
+  // ---- sweat drop ----
+  if(sh.decor==='sweat' && state.sweat){
+    const cyc = (frame%150)/150;
+    const bx = EYE_CX.R+5+ddx;
+    const by = EYE_CY-8+cyc*5;
+    const a  = cyc<0.75 ? 0.95 : 0.95*(1-(cyc-0.75)/0.25);
+    ctx.fillStyle = rgba_(THEME.tear, Math.max(0,a));
+    ctx.fillRect(Math.round(bx*P), Math.round(by*P), P, P);
+    ctx.fillRect(Math.round((bx-1)*P), Math.round((by+1)*P), P*3, P*2);
+  }
+
+  // ---- confused - question mark: spring pop, hold, retract; cycle length varies ----
+  if(sh.decor==='confused' && state.qmark){
+    if(qEnter===null) qEnter = (frozen && fixFrame!==null) ? 0 : frame;
+    const qp = qPhase(frame - qEnter);
+    const st = qSpring(qp.t, qp.period);
+    // no extra fade-in: k growing from 0 is already a fade, another one would hide the pop
+    const out= moodName==='confused' ? 1 : Math.max(0, 1-moodT*2.2); // fade out when switching away
+    if(st.a>0.01 && out>0){
+      const qx = ddx*0.46 + st.wob;
+      const qy = ddy*0.32 + st.y;
+      drawQ(ctx, st.kx, st.ky, qx, qy, st.a*out);
+    }
+  }
+
+  // ---- think - three dots ----
+  if(sh.decor==='swap' && state.dots){
+    const fin = Math.min(1, Math.max(0,(moodT-0.45)/0.35));
+    const out = moodName==='think' ? 1 : Math.max(0, 1-moodT*2.2);
+    if(fin>0 && out>0){
+      drawDots(ctx, ddx*0.42, ddy*0.28 + Math.sin(frame/53)*0.16, fin*out);
+    }
+  }
+
+  ctx2.clearRect(0,0,W,H);
+  ctx2.drawImage(c,0,0);
+
+  frame += steps;
+
+  // real fps: counts actual redraws, skipped refreshes do not count
+  _fpsN++;
+  if(!_fpsT) _fpsT = ts;
+  if(ts - _fpsT >= 500){
+    const f = Math.round(_fpsN * 1000 / (ts - _fpsT));
+    const tag = document.getElementById('fpsTag');
+    if(tag) tag.textContent = `560×448 1:1 · ${f} fps`;
+    _fpsN = 0; _fpsT = ts;
+  }
+
+  if(autoCyc>0){
+    _autoAcc += steps;
+    if(_autoAcc >= autoCyc){
+      _autoAcc = 0;
+      autoIdx=(autoIdx+1)%MOOD_LIST.length;
+      setMood(MOOD_LIST[autoIdx]);
+    }
+  }
+  requestAnimationFrame(render);
+}
+
+/* blink curve: 7 frames closing, 3 frames held, 14 frames opening */
+function blinkCurve(p){
+  if(p < 0.30) return ease(p/0.30);
+  if(p < 0.42) return 1;
+  return 1 - ease((p-0.42)/0.58);
+}
+
+/* Eyelid-style closure: the top edge sweeps all the way down while the bottom edge only
+   lifts in the final stretch, meeting as one line on the centreline - no cell jump. */
+function blinkShape(shape,amt){
+  if(amt<=0.002) return shape;
+  let c=0,n=0;
+  for(let i=0;i<COLS;i++){
+    if(shape.top[i]<=shape.bot[i]){ c+=(shape.top[i]+shape.bot[i])/2; n++; }
+  }
+  if(!n) return shape;
+  const cy=c/n;
+  const aT = Math.min(1,amt*1.06);
+  const aB = Math.min(1,Math.pow(amt,2.6));      // bottom lid only moves in the final stretch
+  const top=[], bot=[];
+  for(let i=0;i<COLS;i++){
+    top.push(shape.top[i]+(cy-shape.top[i])*aT);
+    bot.push(shape.bot[i]+(cy-shape.bot[i])*aB);
+  }
+  return {top,bot};
+}
+
+/* wink tempo presets.
+   period = frames for one full round trip (left + right eye) at 60fps;
+   close / hold / open = share of each eye own window, rest is normal open eyes.
+   soft: 6s round - one eye closes 0.15s, holds 0.30s, opens 0.18s, then 2.4s of nothing.
+   lazy: 10s round - slower, holds longer.
+   Was 180 frames (3s) with each eye held 0.8s: read as constant squinting. */
+const WINK_PRESETS = {
+  soft: { period: 360, close: 0.050, hold: 0.100, open: 0.060 },
+  lazy: { period: 600, close: 0.040, hold: 0.090, open: 0.050 }
+};
+let WINK = WINK_PRESETS.soft;
+
+// wink curve for a single eye, u in [0,0.5): close, hold, open, long rest
+function winkCurve(u){
+  const t = u*2;                                // normalise to this eye own 0~1
+  const A = WINK.close;
+  const B = A + WINK.hold;
+  const C = B + WINK.open;
+  if(t < A) return ease(t/A);                   // closing
+  if(t < B) return 1;                           // held shut
+  if(t < C) return 1 - ease((t-B)/WINK.open);   // opening
+  return 0;                                     // rest of the window: normal open eye
+}
+
+/* ============ Interaction ============ */
+document.querySelectorAll('button[data-m]').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('button[data-m]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    setMood(b.dataset.m);
+  };
+});
+document.querySelectorAll('#dirs button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#dirs button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    setDir(b.dataset.d);
+  };
+});
+document.querySelector('#dirs button[data-d="center"]').classList.add('on');
+document.querySelector('button[data-m="normal"]').classList.add('on');
+
+function bindSwitch(id,key){
+  const el=document.getElementById(id);
+  el.onclick=()=>{ state[key]=!state[key]; el.classList.toggle('on',state[key]); };
+}
+bindSwitch('swBlink','blinkOn'); bindSwitch('swBreath','breath');
+bindSwitch('swAfter','after');
+bindSwitch('swHeart','heart'); bindSwitch('swZzz','zzz');
+bindSwitch('swSweat','sweat'); bindSwitch('swSwap','swapThink');
+bindSwitch('swQ','qmark'); bindSwitch('swDots','dots');
+
+const durEl=document.getElementById('dur'), durV=document.getElementById('durV');
+durEl.oninput=e=>{ dur=+e.target.value; durV.textContent=dur+'ms'; };
+document.getElementById('hue').oninput=e=>{ state.hue=+e.target.value; applyHue(state.hue); clearColCache(); document.getElementById('hueV').textContent=state.hue; };
+document.getElementById('lum').oninput=e=>{ state.lum=+e.target.value; clearColCache(); document.getElementById('lumV').textContent=state.lum; };
+
+// wink tempo: soft / lazy (takes effect immediately, next round uses it)
+document.querySelectorAll('#winkSeg button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#winkSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    WINK = WINK_PRESETS[b.dataset.w] || WINK_PRESETS.soft;
+  };
+});
+
+// idle tier: no condition needed, rotates on its own - what it does when nothing happens
+const TIER1 = ['normal','happy','smug','despise','blink','wink','peek'];
+// triggered tier: only on a real event (sound, touch, command, timeout), never random
+const TIER2 = ['surprise','angry','cry','dizzy','love','speechless','think','sleep','shy','confused','rainbow'];
+const MOOD_LIST = TIER1.concat(TIER2);
+
+let walkTimer=null;
+document.getElementById('btnWalk').onclick=function(){
+  if(walkTimer){ clearInterval(walkTimer); walkTimer=null; this.classList.remove('on'); return; }
+  this.classList.add('on');
+  const ms=TIER1;
+  const ds=Object.keys(DIRS);
+  walkTimer=setInterval(()=>{
+    if(Math.random()<0.55) setMood(ms[Math.floor(Math.random()*ms.length)], 240+Math.random()*320);
+    else setDir(ds[Math.floor(Math.random()*ds.length)], 220+Math.random()*260);
+  }, 1200);
+};
+
+let matTimer=null;
+document.getElementById('btnMatrix').onclick=function(){
+  if(matTimer){ clearInterval(matTimer); matTimer=null; this.classList.remove('on'); return; }
+  this.classList.add('on');
+  const ds=['center','up','upRight','right','downRight','down','downLeft','left','upLeft'];
+  let i=0;
+  matTimer=setInterval(()=>{
+    setDir(ds[i%ds.length], 420);
+    document.querySelectorAll('#dirs button').forEach(x=>x.classList.toggle('on', x.dataset.d===ds[i%ds.length]));
+    i++;
+  }, 700);
+};
+
+// URL params: ?m=love&still=1&f=70&sw=0.5
+{
+  const q=new URLSearchParams(location.search);
+  if(q.get('raw')) document.body.classList.add('raw');
+  if(q.get('still')){ state.blinkOn=false; state.breath=false; state.after=false; frozen=(q.get('f')!==null); }
+  if(q.get('from') && q.get('t')){
+    curMood = cloneMOOD(MOODS[q.get('from')] || MOODS.normal);
+    tgtMood = cloneMOOD(MOODS[q.get('m')] || MOODS.normal);
+    moodT = Math.max(0, Math.min(1, parseFloat(q.get('t'))));
+    moodName = q.get('m') || 'normal';
+    frozen = true;
+  } else if(q.get('m')){ dur=1; setMood(q.get('m'),1); moodT=1; }
+  if(q.get('d')){ setDir(q.get('d'),1); dirT=1; }
+  if(q.get('sw')!==null) swFix=parseFloat(q.get('sw'));
+  if(q.get('bl')!==null) blinkFix=parseFloat(q.get('bl'));
+  if(q.get('f')!==null) fixFrame=parseInt(q.get('f'),10);
+  // ?wink=lazy opens straight into the lazy tempo, handy for screenshots and comparison
+  if(q.get('wink') && WINK_PRESETS[q.get('wink')]){
+    WINK = WINK_PRESETS[q.get('wink')];
+    document.querySelectorAll('#winkSeg button').forEach(x=>x.classList.toggle('on', x.dataset.w===q.get('wink')));
+  }
+}
+
+// ?cycle=210 - cycle an expression every 210ms, stress-testing transition leftovers (frame-counted)
+let autoCyc=0, autoIdx=0, _autoAcc=0;
+{
+  const q=new URLSearchParams(location.search);
+  const ms=parseInt(q.get('cycle')||'0',10);
+  if(ms>0) autoCyc=Math.max(2,Math.round(ms/16.7));
+}
+
+render();
+</script>
+</body>
+</html>
