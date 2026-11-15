@@ -13,3 +13,7 @@ Thumbs.db
 # Editor
 *.swp
 *~
+
+# render scratch (tests/gen_sheets.py)
+tests/.cells/
+tests/.profile/

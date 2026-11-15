@@ -70,6 +70,14 @@ motion, but the head is never a rock.
 
 ## The interest map
 
+<img src="images/gaze-directions.png" width="820" alt="Thirteen gaze directions">
+
+Thirteen discrete directions, generated from `web/eyes.html` by `tests/gen_sheets.py`.
+Looking down (`6 o'clock`) pushes the eyes to the bottom edge of the 160×128 panel and they
+clip there — that is what the panel does, not an artefact of the screenshot. On hardware the
+firmware keeps the tilt offset inside the calibrated servo range, so the clip is only visible
+in the browser.
+
 | Where | Gaze direction | Pan offset | Tilt offset | Weight |
 |---|---|---|---|---|
 | **Straight ahead (you)** | centre | 0 | 0 | **8** |
