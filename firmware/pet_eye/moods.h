@@ -1,5 +1,5 @@
-// Generated from the MOODS table in web/eyes.html - keep the two in sync by hand
-// Order defines the enum values, so reordering changes the serial command indices.
+// 自动生成：node gen_moods.js > moods.h   请勿手改
+// 来源：eyes_v14.html 的 MOODS 定义
 #pragma once
 #include <stdint.h>
 
@@ -8,7 +8,10 @@
 enum Decor : uint8_t {
   DECOR_NONE=0, DECOR_SMUG, DECOR_WINK, DECOR_PEEK, DECOR_TEAR, DECOR_SHAKE,
   DECOR_HEARTS, DECOR_SWEAT, DECOR_SWAP, DECOR_ZZZ, DECOR_SHY,
-  DECOR_CONFUSED, DECOR_RAINBOW
+  DECOR_CONFUSED, DECOR_RAINBOW,
+  // v14 追加（务必加在末尾，值要跟下面的 MOOD_TABLE 一致）
+  DECOR_JBLOB, DECOR_NONO, DECOR_NONO_BLINK,
+  DECOR_DEAD, DECOR_NOD, DECOR_GLITCH
 };
 
 enum MoodId : uint8_t {
@@ -30,6 +33,13 @@ enum MoodId : uint8_t {
   M_SHY = 15,
   M_CONFUSED = 16,
   M_RAINBOW = 17,
+  M_STARTLE = 18,
+  M_ANGRY2 = 19,
+  M_NONO = 20,
+  M_NONOBLINK = 21,
+  M_DEAD = 22,
+  M_NOD = 23,
+  M_GLITCH = 24,
   MOOD_COUNT
 };
 
@@ -113,8 +123,36 @@ static const MoodDef MOOD_TABLE[MOOD_COUNT] = {
   { {{99,99,99,-7,-7,-7,-7,-7,-7,99,99,99}, {-99,-99,-99,7,7,7,7,7,7,-99,-99,-99}},
     {{99,99,99,-7,-7,-7,-7,-7,-7,99,99,99}, {-99,-99,-99,7,7,7,7,7,7,-99,-99,-99}},
     0, 0, 0, 0, 0, 0, DECOR_RAINBOW },
+  // 18: startle
+  { {{99,99,-13,-13,-13,-13,-13,-13,-13,-13,99,99}, {-99,-99,13,13,13,13,13,13,13,13,-99,-99}},
+    {{99,99,-13,-13,-13,-13,-13,-13,-13,-13,99,99}, {-99,-99,13,13,13,13,13,13,13,13,-99,-99}},
+    0, 0, -1, 1, 0, 0, DECOR_JBLOB },
+  // 19: angry2
+  { {{99,99,99,-6.6,-5.96,-5.32,-4.68,-4.04,-3.4,99,99,99}, {-99,-99,-99,5,5,5,5,5,5,-99,-99,-99}},
+    {{99,99,99,-3.4,-4.04,-4.68,-5.32,-5.96,-6.6,99,99,99}, {-99,-99,-99,5,5,5,5,5,5,-99,-99,-99}},
+    0, 0, 0, 0, 0, 0, DECOR_SHAKE },
+  // 20: nono
+  { {{99,99,99,-4.5,-4.5,-4.5,-4.5,-4.5,-4.5,99,99,99}, {-99,-99,-99,4.5,4.5,4.5,4.5,4.5,4.5,-99,-99,-99}},
+    {{99,99,99,-4.5,-4.5,-4.5,-4.5,-4.5,-4.5,99,99,99}, {-99,-99,-99,4.5,4.5,4.5,4.5,4.5,4.5,-99,-99,-99}},
+    0, 0.4, 0, 0, 0, 0, DECOR_NONO },
+  // 21: nonoBlink
+  { {{99,99,99,-1,-1,-1,-1,-1,-1,99,99,99}, {-99,-99,-99,0,0,0,0,0,0,-99,-99,-99}},
+    {{99,99,99,-1,-1,-1,-1,-1,-1,99,99,99}, {-99,-99,-99,0,0,0,0,0,0,-99,-99,-99}},
+    0, 0, 0, 0, 0, 0, DECOR_NONO_BLINK },
+  // 22: dead
+  { {{99,99,99,99,99,99,99,99,99,99,99,99}, {-99,-99,-99,-99,-99,-99,-99,-99,-99,-99,-99,-99}},
+    {{99,99,99,99,99,99,99,99,99,99,99,99}, {-99,-99,-99,-99,-99,-99,-99,-99,-99,-99,-99,-99}},
+    0, 0, 0, 0, 0, 0, DECOR_DEAD },
+  // 23: nod
+  { {{99,99,99,-6.5,-6.5,-6.5,-6.5,-6.5,-6.5,99,99,99}, {-99,-99,-99,6.5,6.5,6.5,6.5,6.5,6.5,-99,-99,-99}},
+    {{99,99,99,-6.5,-6.5,-6.5,-6.5,-6.5,-6.5,99,99,99}, {-99,-99,-99,6.5,6.5,6.5,6.5,6.5,6.5,-99,-99,-99}},
+    0, 0, 0, 0, 0, 0, DECOR_NOD },
+  // 24: glitch
+  { {{99,99,99,-6.5,-6.5,-6.5,-6.5,-6.5,-6.5,99,99,99}, {-99,-99,-99,6.5,6.5,6.5,6.5,6.5,6.5,-99,-99,-99}},
+    {{99,99,99,-6.5,-6.5,-6.5,-6.5,-6.5,-6.5,99,99,99}, {-99,-99,-99,6.5,6.5,6.5,6.5,6.5,6.5,-99,-99,-99}},
+    0, 0, 0, 0, 0, 0, DECOR_GLITCH },
 };
 
 static const char* const MOOD_NAMES[MOOD_COUNT] = {
-  "normal", "happy", "smug", "despise", "blink", "wink", "peek", "surprise", "angry", "cry", "dizzy", "love", "speechless", "think", "sleep", "shy", "confused", "rainbow"
+  "normal", "happy", "smug", "despise", "blink", "wink", "peek", "surprise", "angry", "cry", "dizzy", "love", "speechless", "think", "sleep", "shy", "confused", "rainbow", "startle", "angry2", "nono", "nonoBlink", "dead", "nod", "glitch"
 };

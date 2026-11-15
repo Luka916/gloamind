@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>Gloamind · Pixel Eyes</title>
+<title>像素眼睛 v13 · 时钟十二向 / 大位移</title>
 <style>
   :root{ --bg:#07090a; --panel:#0e1214; --line:#1c2427; --txt:#8fa3a8; }
   *{box-sizing:border-box}
@@ -62,9 +62,29 @@
   .dpad button:hover{background:#152024;color:#a8bcc1}
   .dpad button.on{background:rgba(61,255,122,.12);color:#5cff92;border-color:rgba(61,255,122,.5)}
 
+  /* 时钟十二向：按钮按角度挂在圆环上，--a 是"从正上顺时针转多少度" */
+  .dial{position:relative;width:196px;height:196px;margin:4px auto 0}
+  .dial button{
+    position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;
+    background:#101618;color:#6a7d82;border:1px solid #1e2729;border-radius:50%;
+    font-size:10.5px;cursor:pointer;font-family:inherit;transition:.14s;
+    display:flex;align-items:center;justify-content:center;padding:0;
+    transform:rotate(var(--a)) translateY(-82px) rotate(calc(-1 * var(--a)));
+  }
+  .dial button:hover{background:#152024;color:#a8bcc1}
+  .dial button.on{background:rgba(61,255,122,.12);color:#5cff92;border-color:rgba(61,255,122,.5)}
+  .dial button.c{transform:none;font-size:13px;border-radius:7px;width:34px;height:34px;margin:-17px 0 0 -17px}
+
   .row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:11px}
   .row input[type=range]{width:150px;accent-color:#3dff7a;height:3px}
   .row .val{color:#4cff88;font-variant-numeric:tabular-nums;width:52px;text-align:right;font-size:10.5px}
+  /* 取色器：默认的系统控件在深色面板上太亮，压一层边框收进去 */
+  .row input[type=color]{-webkit-appearance:none;appearance:none;width:44px;height:18px;padding:0;
+    border:1px solid #263034;border-radius:4px;background:transparent;cursor:pointer}
+  .row input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+  .row input[type=color]::-webkit-color-swatch{border:none;border-radius:2px}
+  .swatches{display:flex;gap:3px}
+  .swatches input[type=color]{width:19px;height:17px}
   .sw{width:34px;height:17px;border-radius:9px;background:#1b2325;border:1px solid #263034;position:relative;cursor:pointer;transition:.18s;flex:none}
   .sw::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#4a5a5e;transition:.18s}
   .sw.on{background:rgba(61,255,122,.16);border-color:rgba(61,255,122,.5)}
@@ -77,14 +97,14 @@
   .actual canvas{width:120px;height:96px}
   .actual-txt{font-size:9.5px;color:#3f4d51;line-height:1.7;letter-spacing:.03em}
 
-  /* ?raw=1 — canvas only, for 1:1 screenshots */
+  /* ?raw=1 —— 只留画布，1:1 截图用 */
   body.raw{display:block;padding:0;background:#000;overflow:hidden}
   body.raw .panel{display:none}
   body.raw .device{position:fixed;left:0;top:0;padding:0;border:0;background:#000;box-shadow:none;border-radius:0}
   body.raw .screen-wrap{border-radius:0;box-shadow:none;background:#000}
   body.raw canvas{width:560px;height:448px}
   body.raw .tag,body.raw .glare{display:none}
-  /* wink tempo presets */
+  /* .seg 分段开关（原 wink 节奏用，现已无使用者，样式留着给后续控件） */
   .seg{display:flex;gap:4px;flex:none}
   .seg button{font-size:10px;padding:3px 9px;border-radius:5px;border:1px solid #1d2a26;
     background:#0e1512;color:#6b7c76;cursor:pointer;font-family:inherit;transition:.15s}
@@ -99,131 +119,174 @@
     <canvas id="c" width="560" height="448"></canvas>
     <div class="glare"></div>
   </div>
-  <div class="tag"><span>ST7735S · 160×128 landscape</span><span id="fpsTag">560×448 1:1 · -- fps</span></div>
+  <div class="tag"><span>ST7735S · 160×128 横屏</span><span id="fpsTag">560×448 1:1 · -- fps</span></div>
 </div>
 
 <div class="panel">
-  <h1>GLOAMIND</h1>
-  <div class="sub">18 expressions · idle + triggered · springy question mark</div>
+  <h1>PIXEL EYES v14.6</h1>
+  <div class="sub">25 表情 · 时钟十二向 · 云台跟随 · 点头 / 故障</div>
 
   <div class="grp">
-    <div class="grp-t"><span>Idle · always on</span><span class="hint" id="moodNow">normal</span></div>
+    <div class="grp-t"><span>一级 · 常态</span><span class="hint" id="moodNow">normal</span></div>
     <div class="btns four" id="moods">
-      <button data-m="normal">DEFAULT<br>default</button>
-      <button data-m="happy"><span class="em">☺️</span>happy</button>
-      <button data-m="smug"><span class="em">😎</span>smug</button>
-      <button data-m="despise"><span class="em">😏</span>despise</button>
-      <button data-m="blink"><span class="em">—</span>blink</button>
-      <button data-m="wink"><span class="em">😜</span>wink</button>
-      <button data-m="peek"><span class="em">👀</span>peek</button>
+      <button data-m="normal">DEFAULT<br>默认</button>
+      <button data-m="happy"><span class="em">☺️</span>开心</button>
+      <button data-m="smug"><span class="em">😎</span>得意</button>
+      <button data-m="despise"><span class="em">😏</span>轻视</button>
+      <button data-m="blink"><span class="em">—</span>闭眼</button>
+      <button data-m="wink"><span class="em">😜</span>wink<br>闭左眼</button>
+      <button data-m="peek"><span class="em">👀</span>偷看</button>
     </div>
   </div>
 
   <div class="grp">
-    <div class="grp-t"><span>Triggered · needs a condition</span><span class="hint">never random</span></div>
+    <div class="grp-t"><span>二级 · 条件触发</span><span class="hint">满足条件才切</span></div>
     <div class="btns" id="moods2">
-      <button data-m="surprise"><span class="em">😲</span>surprise<span class="trig">sudden noise</span></button>
-      <button data-m="angry"><span class="em">😡</span>angry<span class="trig">repeated pokes</span></button>
-      <button data-m="cry"><span class="em">😭</span>cry<span class="trig">left alone</span></button>
-      <button data-m="dizzy"><span class="em">😵‍💫</span>dizzy<span class="trig">shaken hard</span></button>
-      <button data-m="love"><span class="em">🥰</span>love<span class="trig">head pat</span></button>
-      <button data-m="speechless"><span class="em">😅</span>speechless<span class="trig">odd question</span></button>
-      <button data-m="think"><span class="em">🤔</span>think<span class="trig">got a command</span></button>
-      <button data-m="sleep"><span class="em">😴</span>sleep<span class="trig">idle 5 min</span></button>
-      <button data-m="shy"><span class="em">😳</span>shy<span class="trig">stared at</span></button>
-      <button data-m="confused"><span class="em">😕</span>confused<span class="trig">no idea</span></button>
-      <button data-m="rainbow"><span class="em">🌈</span>rainbow<span class="trig">easter egg</span></button>
+      <button data-m="surprise"><span class="em">😲</span>惊讶<span class="trig">突然声响</span></button>
+      <button data-m="angry"><span class="em">😡</span>生气<span class="trig">连续戳</span></button>
+      <button data-m="cry"><span class="em">😭</span>哭<span class="trig">没人理</span></button>
+      <button data-m="dizzy"><span class="em">😵‍💫</span>晕<span class="trig">快速晃动</span></button>
+      <button data-m="love"><span class="em">🥰</span>喜欢<span class="trig">摸头</span></button>
+      <button data-m="speechless"><span class="em">😅</span>无语<span class="trig">奇怪问题</span></button>
+      <button data-m="think"><span class="em">🤔</span>思考<span class="trig">收到指令</span></button>
+      <button data-m="sleep"><span class="em">😴</span>睡着<span class="trig">静止 5 分</span></button>
+      <button data-m="shy"><span class="em">😳</span>害羞<span class="trig">被盯着看</span></button>
+      <button data-m="confused"><span class="em">😕</span>困惑<span class="trig">听不懂</span></button>
+      <button data-m="rainbow"><span class="em">🌈</span>彩虹<span class="trig">彩蛋</span></button>
+      <button data-m="startle"><span class="em">😱</span>被吓一跳<span class="trig">突然巨响</span></button>
+      <button data-m="angry2"><span class="em">😠</span>生气 II<span class="trig">继续戳</span></button>
+      <button data-m="nono"><span class="em">🙅</span>摇头<span class="trig">拒绝 / 摇头</span></button>
+      <button data-m="nonoBlink"><span class="em">😌</span>闭眼摇头<span class="trig">用力拒绝</span></button>
+      <button data-m="dead"><span class="em">💀</span>死鱼眼<span class="trig">没电 / 挂机</span></button>
+      <button data-m="nod"><span class="em">🙂</span>点头<span class="trig">收到 / 应答</span></button>
+      <button data-m="glitch"><span class="em">📺</span>故障<span class="trig">死机 / 接触不良</span></button>
     </div>
   </div>
 
   <div class="grp">
-    <div class="grp-t"><span>Gaze · 8 directions</span><span class="hint" id="dirNow">center</span></div>
-    <div class="dpad" id="dirs">
-      <button data-d="upLeft">↖</button><button data-d="up">↑</button><button data-d="upRight">↗</button>
-      <button data-d="left">←</button><button data-d="center">•</button><button data-d="right">→</button>
-      <button data-d="downLeft">↙</button><button data-d="down">↓</button><button data-d="downRight">↘</button>
+    <div class="grp-t"><span>视线方向 · 时钟十二向</span><span class="hint" id="dirNow">center</span></div>
+    <div class="dial" id="dirs">
+      <button data-d="up"            style="--a:0deg">12</button>
+      <button data-d="upUpRight"     style="--a:30deg">1</button>
+      <button data-d="upRight"       style="--a:60deg">2</button>
+      <button data-d="right"         style="--a:90deg">3</button>
+      <button data-d="downRight"     style="--a:120deg">4</button>
+      <button data-d="downDownRight" style="--a:150deg">5</button>
+      <button data-d="down"          style="--a:180deg">6</button>
+      <button data-d="downDownLeft"  style="--a:210deg">7</button>
+      <button data-d="downLeft"      style="--a:240deg">8</button>
+      <button data-d="left"          style="--a:270deg">9</button>
+      <button data-d="upLeft"        style="--a:300deg">10</button>
+      <button data-d="upUpLeft"      style="--a:330deg">11</button>
+      <button data-d="center" class="c">•</button>
     </div>
   </div>
 
   <div class="grp">
-    <div class="grp-t">Transition</div>
-    <div class="row"><span>Duration</span><input type="range" id="dur" min="60" max="900" value="260"><span class="val" id="durV">260ms</span></div>
+    <div class="grp-t"><span>云台跟随 · 模拟 PAN</span><span class="hint" id="panNow">0°</span></div>
+    <div class="row"><span>PAN 角度</span><input type="range" id="pan" min="-90" max="90" step="1" value="0"><span class="val" id="panV">0°</span></div>
+    <div class="row"><span>眼睛额外偏移</span><span class="val" id="panEye">+0.00 格</span></div>
+    <div class="row"><span>待机扫视（±12° / 9s）</span><div class="sw" id="swIdle"></div></div>
+  </div>
+
+  <div class="grp">
+    <div class="grp-t">过渡</div>
+    <div class="row"><span>时长</span><input type="range" id="dur" min="60" max="900" value="260"><span class="val" id="durV">260ms</span></div>
     <div class="btns two" style="margin-top:6px">
-      <button id="btnWalk">random walk</button>
-      <button id="btnMatrix">cycle all</button>
+      <button id="btnWalk">随机游走</button>
+      <button id="btnMatrix">遍历全部过渡</button>
     </div>
   </div>
 
   <div class="grp">
-    <div class="grp-t">Dynamics</div>
-    <div class="row"><span>auto blink (2.5–6s)</span><div class="sw on" id="swBlink"></div></div>
-    <div class="row"><span>wink tempo</span>
-      <span class="seg" id="winkSeg"><button data-w="soft" class="on">soft</button><button data-w="lazy">lazy</button></span>
-    </div>
-    <div class="row"><span>breathing brightness</span><div class="sw on" id="swBreath"></div></div>
-    <div class="row"><span>phosphor afterglow</span><div class="sw on" id="swAfter"></div></div>
+    <div class="grp-t">动态</div>
+    <div class="row"><span>自动眨眼（2.5~6s）</span><div class="sw on" id="swBlink"></div></div>
+    <div class="row"><span>磷光余晖</span><div class="sw on" id="swAfter"></div></div>
   </div>
 
   <div class="grp">
-    <div class="grp-t">Extras <span class="hint">switch off to compare</span></div>
-    <div class="row"><span>love · heart particles</span><div class="sw on" id="swHeart"></div></div>
-    <div class="row"><span>sleep · Zzz</span><div class="sw on" id="swZzz"></div></div>
-    <div class="row"><span>speechless · sweat drop</span><div class="sw on" id="swSweat"></div></div>
-    <div class="row"><span>think · eye size swap</span><div class="sw on" id="swSwap"></div></div>
-    <div class="row"><span>confused · question pop</span><div class="sw on" id="swQ"></div></div>
-    <div class="row"><span>think · three dots</span><div class="sw on" id="swDots"></div></div>
+    <div class="grp-t">附加动作 <span class="hint">可单独关掉对比</span></div>
+    <div class="row"><span>喜欢 · 爱心粒子</span><div class="sw on" id="swHeart"></div></div>
+    <div class="row"><span>睡着 · Zzz</span><div class="sw on" id="swZzz"></div></div>
+    <div class="row"><span>无语 · 汗滴</span><div class="sw on" id="swSweat"></div></div>
+    <div class="row"><span>思考 · 大小眼互换</span><div class="sw on" id="swSwap"></div></div>
+    <div class="row"><span>困惑 · 问号弹出</span><div class="sw on" id="swQ"></div></div>
+    <div class="row"><span>思考 · 三点等待</span><div class="sw on" id="swDots"></div></div>
+    <div class="row"><span>被吓 · 感叹号</span><div class="sw on" id="swEx"></div></div>
   </div>
 
   <div class="grp">
-    <div class="grp-t">Colour</div>
-    <div class="row"><span>hue</span><input type="range" id="hue" min="95" max="165" value="146"><span class="val" id="hueV">146</span></div>
-    <div class="row"><span>brightness</span><input type="range" id="lum" min="40" max="130" value="100"><span class="val" id="lumV">100</span></div>
+    <div class="grp-t">颜色 <span class="hint">点色块改，实时生效</span></div>
+    <div class="row"><span>色相</span><input type="range" id="hue" min="95" max="165" value="146"><span class="val" id="hueV">146</span></div>
+    <div class="row"><span>亮度</span><input type="range" id="lum" min="40" max="130" value="100"><span class="val" id="lumV">100</span></div>
+    <div class="row"><span>腮红</span><input type="color" id="colBlush" value="#ff76a4"><span class="val" id="colBlushV">#ff76a4</span></div>
+    <div class="row"><span>泪滴 / 汗滴</span><input type="color" id="colTear" value="#78cdf5"><span class="val" id="colTearV">#78cdf5</span></div>
+    <div class="row"><span>死眼 · X</span><input type="color" id="colDead" value="#969696"><span class="val" id="colDeadV">#969696</span></div>
+    <div class="row"><span>感叹号</span><input type="color" id="colEx" value="#ffe478"><span class="val" id="colExV">#ffe478</span></div>
+    <div class="row"><span>爆炸射线</span><input type="color" id="colBurst" value="#ff5438"><span class="val" id="colBurstV">#ff5438</span></div>
+    <div class="row"><span>爱心 6 色</span><span class="swatches" id="heartSw"></span></div>
+    <div class="row"><span>背景底</span><input type="color" id="colBase" value="#000803"><span class="val" id="colBaseV">#000803</span></div>
   </div>
 
   <div class="actual">
     <canvas id="c2" width="560" height="448"></canvas>
     <div class="actual-txt">
-      1:1 actual size<br>
-      this is all the green a 1.8" panel gives you
+      1:1 实际大小<br>
+      1.8 寸屏上就这么两小条绿光
     </div>
   </div>
 
   <div class="note" style="margin-top:12px">
-    <b>Hearts are a particle system:</b> each one has its own birth frame, initial velocity, sway phase, size and tint, and is destroyed when its life runs out. Capped at 18 alive at any moment, so it never grows without bound.
+    <b>爱心是粒子系统：</b>每颗有独立出生帧、初速、摆动相位、大小和颜色，生命周期结束就销毁。任意时刻最多 18 颗，不会无限增长。
   </div>
 </div>
 
 <script>
-const P=14, W=40*P, H=32*P;     // 560x448 internal, 14px per cell; positions resolve to 1 screen pixel
-const S=P/4;                     // pixel scale relative to the original 160x128 build (P was 4 then).
-                                 // The heart bitmap and the Zzz glyphs were sized in raw pixels,
-                                 // so they scale with P or they look shrunken on the bigger canvas.
+const P=14, W=40*P, H=32*P;     // 内部 560×448，一格 14px；位移精度到 1 像素
+const S=P/4;                     // 相对最早 160×128 版的像素缩放（那时 P=4）。
+                                 // 爱心的点阵、Zzz 的字块是按裸像素写死尺寸的，得跟着放大，
+                                 // 否则画布变大了它们还是 2~3px，看上去就缩水。
 const COLS=12;
-// ============ Palette ============
-// Hook a colour picker in later: edit the numbers here, the render code stays untouched.
-// h/s/l = hue / saturation / lightness(%); rgb arrays = 0~255.
+// ============ 调色板 ============
+// 以后接取色器，只改这里的数值，下面的渲染代码一行都不用动。
+// h/s/l = 色相 / 饱和度 / 亮度(%)；rgb 数组 = 0~255。
 const THEME = {
-  eye:    { h:146, s:100, l:56 },     // eye body (lightness is scaled again by the brightness slider)
-  glow:   { h:146, s:100, l:92 },     // highlight along the top edge of the eyelid
-  icon:   { h:146, s:100 },           // question mark / dots / Zzz (brightness per icon; hue+sat fixed here)
-  heart:  ['#ff7ca6','#ff4d7d','#ffb3cc','#ffd9e6','#ff8fb4','#5cff92'],  // six heart tints
-  blush:  [255,118,164],              // shy blush
-  tear:   [120,205,245],              // tears / sweat
-  tearHi: [190,245,255],              // tear highlight
-  base:   '#000803'                   // opaque backing so nothing shows through the eye
+  eye:    { h:146, s:100, l:56 },     // 眼睛主体（l 还会被亮度滑块缩放）
+  glow:   { h:146, s:100, l:92 },     // 眼皮顶部那条高光
+  icon:   { h:146, s:100 },           // 问号 / 三点 / Zzz（亮度各自算，这里只定色相饱和度）
+  heart:  ['#ff7ca6','#ff4d7d','#ffb3cc','#ffd9e6','#ff8fb4','#5cff92'],  // 爱心 6 色
+  blush:  [255,118,164],              // 害羞腮红
+  tear:   [120,205,245],              // 泪滴 / 汗滴
+  tearHi: [190,245,255],              // 泪滴高亮
+  exclaim:[255,228,120],              // 被吓一跳的感叹号
+  burst:  [255,84,56],                // 感叹号外圈放射线
+  dead:   [150,150,150],              // 死鱼眼：X 眼用的灰
+  base:   '#000803'                   // 眼球不透明底色
 };
-const EYE_BASE = THEME.base;
+let EYE_BASE = THEME.base;      // 底板色允许被取色器改，所以是 let
 const rgba_ = (c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
-// move the main hue and eye / highlight / icon all follow, keeping the set monochrome
+
+// 主色相一动，眼睛/高光/图标三处一起跟，保持整套同色
 function applyHue(h){ THEME.eye.h=h; THEME.glow.h=h; THEME.icon.h=h; }
 
 const c=document.getElementById('c'), ctx=c.getContext('2d');
 const c2=document.getElementById('c2'), ctx2=c2.getContext('2d');
 
+/* 故障切片用的离屏副本：先把整帧拷进来，再按横条贴回去。
+   直接在同一个 canvas 上 drawImage 自己也能跑，但源和目标重叠时
+   部分版本会读到"正在被写"的像素，出条纹脏边 —— 离屏这份永远是干净的。 */
+const glCanvas = document.createElement('canvas');
+glCanvas.width = W; glCanvas.height = H;
+const glCtx = glCanvas.getContext('2d');
+
+/* 确定性伪随机：同一个 seed 永远同一个数。
+   故障切片要是随手 Math.random()，同一 URL 每次截出来的图都不一样，没法比对。 */
+function rnd(x){ const s = Math.sin(x*127.1 + 0.7)*43758.5453; return s - Math.floor(s); }
+
 const EYE_CX={L:14, R:26};
 const EYE_CY=16;
 
-/* ============ Shape helpers ============ */
+/* ============ 形状工具 ============ */
 const inW = (i,w)=> Math.abs(i-5.5) < w/2 - 0.001;
 
 function mk(tf,bf){
@@ -232,7 +295,7 @@ function mk(tf,bf){
   return {top,bot};
 }
 
-// straight bar
+// 直条
 function solid(w,h,dy=0){
   return mk(
     i=> inW(i,w) ? (-h/2+dy) : 99,
@@ -240,7 +303,7 @@ function solid(w,h,dy=0){
   );
 }
 
-// vertical bar with a narrower cap: body w cells wide, top ch rows narrowed to cw cells
+// 顶部收窄的竖条：主体 w 格宽，最上面 ch 行缩到 cw 格宽（图一的眼睛样式）
 function cap(w,h,cw,ch,dy=0){
   return mk(
     i=> !inW(i,w) ? 99 : (inW(i,cw) ? (-h/2+dy) : (-h/2+ch+dy)),
@@ -248,7 +311,7 @@ function cap(w,h,cw,ch,dy=0){
   );
 }
 
-// slanted top edge, flat bottom
+// 上缘斜切、下缘水平（平底斜顶）
 function wedge(w,h,slope,dy=0){
   return mk(
     i=> inW(i,w) ? (-h/2+dy+slope*(i-5.5)) : 99,
@@ -276,53 +339,144 @@ function pair(L,R,opt={}){
 }
 function sym(s,opt={}){ return pair(s,s,opt); }
 
-/* ============ Expression table ============ */
-const CAP_EYE = ()=> cap(6,14,4,3);      // narrow platform on top + straight bar
+/* ============ 表情库 ============ */
+const CAP_EYE = ()=> cap(6,14,4,3);      // 图一：顶部窄平台 + 等宽竖条
+/* 空形状：每一列都 top>bot，drawEye 扫完发现 hi<0 就直接 return，一个像素都不画。
+   死鱼眼（X）用不到竖条，靠 decor 单独画叉，所以给它俩空壳。 */
+const EMPTY_EYE = ()=> mk(()=>99, ()=>-99);
 
 const MOODS = {
   normal:     sym(solid(6,14)),
-  blink:      sym(solid(6,1,-0.5)),                                       // closed = one horizontal line
-  happy:      sym(CAP_EYE()),                                          // the classic happy arc
-  surprise:   pair(solid(8,24), solid(8,24), {lx:-1, rx:1}),          // surprise: both wide, 6-cell gap
-  rainbow:    sym(solid(6,14), {decor:'rainbow'}),                    // easter egg: rainbow flow
-  shy:        pair(solid(5,11), solid(5,11), {lx:0.6, rx:-0.6, decor:'shy'}),   // shy: smaller, pulled in + blush
-  smug:       pair(solid(6,13), solid(6,10), {ldy:-0.9, rdy:0.9, decor:'smug'}), // smug: one bigger, one higher
-  confused:   pair(solid(7,12), solid(5,10), {lx:-0.4, rx:0.4, decor:'confused'}), // confused: asymmetric drift
-  wink:       pair(solid(6,14), solid(6,14), {decor:'wink'}),                  // wink: one eye shuts
-  peek:       pair(solid(6,14), solid(6,14), {decor:'peek'}),                  // peek: the pair slides sideways
-  angry:      pair(wedge(6,10, 0.64), wedge(6,10,-0.64)),            // flat bottom, slanted top - V brows
-  despise:    pair(wedge(6,10, 0.62), wedge(6,10, 0.62)),            // despise: both slanted the same way
+  blink:      sym(solid(6,1,-0.5)),                                       // 闭眼 = 一条横线
+  happy:      sym(CAP_EYE()),                                          // ☺️ 图一样式
+  surprise:   pair(solid(8,24), solid(8,24), {lx:-1, rx:1}),          // 惊讶：统一用宽间距（间隙 6 格）
+  rainbow:    sym(solid(6,14), {decor:'rainbow'}),                    // 彩蛋：彩虹流光
+  shy:        pair(solid(5,11), solid(5,11), {lx:0.6, rx:-0.6, decor:'shy'}),   // 害羞：缩小内收 + 腮红
+  smug:       pair(solid(6,13), solid(6,10), {ldy:-0.9, rdy:0.9, decor:'smug'}), // 得意：一大一小 + 一高一低
+  confused:   pair(solid(7,12), solid(5,10), {lx:-0.4, rx:0.4, decor:'confused'}), // 困惑：不对称浮动
+  wink:       pair(solid(6,14), solid(6,14), {decor:'wink'}),                  // 眨眼：单眼闭合
+  peek:       pair(solid(6,14), solid(6,14), {decor:'peek'}),                  // 偷看：整体左右移动
+  angry:      pair(wedge(6,10, 0.64), wedge(6,10,-0.64)),            // 平底斜顶 V 型（顶沿对齐默认高度）
+  despise:    pair(wedge(6,10, 0.62), wedge(6,10, 0.62)),            // 轻视：两只同向，平底斜顶
   cry:        pair(droop(6), droop(6), {decor:'tear'}),
-  love:       sym(CAP_EYE(), {decor:'hearts'}),                        // happy arc + heart particles
+  love:       sym(CAP_EYE(), {decor:'hearts'}),                        // 🥰 开心眼 + 爱心粒子
   speechless: pair(solid(6,10), solid(6,10), {decor:'sweat'}),
   think:      pair(solid(6,11,-2), solid(6,6,-2), {dy:-1, decor:'swap'}),
   dizzy:      pair(solid(6,9), solid(6,9), {decor:'shake'}),
-  sleep:      pair(solid(6,1,-0.5), solid(6,1,-0.5), {decor:'zzz'})          // closed lines + Zzz
+  sleep:      pair(solid(6,1,-0.5), solid(6,1,-0.5), {decor:'zzz'}),         // 😴 横线 + Zzz
+  /* v14 新增，一律追加在末尾：插到中间会让后面所有串口号移位 */
+  startle:    pair(solid(8,26), solid(8,26), {lx:-1, rx:1, decor:'jblob'}),   // 被吓一跳：拉长 + 果冻 + 感叹号
+  angry2:     pair(wedge(6,10, 0.64), wedge(6,10,-0.64), {decor:'shake'}),    // 生气二级：加抖动
+  /* 摇头：眼睛半眯到 9 格（比默认 14 矮 5 格），再整体下沉 0.4 格 —— 倔、不情愿。
+     眯眼是关键：睁大眼睛左右甩像"受惊乱看"，眯起来才读成"不耐烦地摇头说不"。 */
+  nono:       pair(solid(6,9), solid(6,9), {dy:0.4, decor:'nono'}),
+  /* 闭眼摇头：使劲摇头时人会闭眼。闭成一条横线跟着甩，比眯眼更"用力"，
+     也更好认 —— 一条线在左右摆，一眼就知道是在摇，不是在瞟。 */
+  nonoBlink:  pair(solid(6,1,-0.5), solid(6,1,-0.5), {decor:'nonoBlink'}),
+  /* 死鱼眼：两只眼变成 X。形状是空的，X 由 drawDeadX 单独画。 */
+  dead:       pair(EMPTY_EYE(), EMPTY_EYE(), {decor:'dead'}),
+  /* v14.4 三个新表情，照旧追加在末尾 */
+  /* 点头：形状只比默认矮 1 格（脖子动，眼形基本不变），上下点两下由 headNod 驱动。
+     眯太多会看成"困"，所以只矮 1 格。 */
+  nod:        pair(solid(6,13), solid(6,13), {decor:'nod'}),
+  /* 故障：不是"晕"那种规则抖动，是整屏横条错位 + 缺行 + 闪白，见 render 末尾的切片段。
+     眼形用正常竖条 —— 故障感全在"画面被撕开"，眼形自己不需要变形。 */
+  glitch:     pair(solid(6,13), solid(6,13), {decor:'glitch'})
 };
 
 const THINK_A = pair(solid(6,11,-2), solid(6,6,-2), {dy:-1});
 const THINK_B = pair(solid(6,6,-2), solid(6,11,-2), {dy:-1});
 
+/* 视线：时钟十二向，每 30° 一个点位。
+   这里只存"单位向量"，实际位移 = 单位向量 × 当前幅度（见 dirAmp）。
+   之所以把方向和幅度拆开：幅度要随表情变，如果还像以前那样把格数写死在表里，
+   切表情时眼睛会"啪"地跳一下。拆开后幅度单独平滑，方向切换手感不变。
+   y 向下为正，所以"上"是 -1。 */
 const DIRS = {
-  center:[0,0],
-  up:[0,-3.2], upRight:[2.6,-2.6], right:[3.2,0], downRight:[2.6,2.6],
-  down:[0,3.2], downLeft:[-2.6,2.6], left:[-3.2,0], upLeft:[-2.6,-2.6]
+  center:       [ 0.000, 0.000],
+  up:           [ 0.000,-1.000],   // 12 点
+  upUpRight:    [ 0.500,-0.866],   //  1 点
+  upRight:      [ 0.866,-0.500],   //  2 点
+  right:        [ 1.000, 0.000],   //  3 点
+  downRight:    [ 0.866, 0.500],   //  4 点
+  downDownRight:[ 0.500, 0.866],   //  5 点
+  down:         [ 0.000, 1.000],   //  6 点
+  downDownLeft: [-0.500, 0.866],   //  7 点
+  downLeft:     [-0.866, 0.500],   //  8 点
+  left:         [-1.000, 0.000],   //  9 点
+  upLeft:       [-0.866,-0.500],   // 10 点
+  upUpLeft:     [-0.500,-0.866]    // 11 点
 };
+// 顺时针一圈，遍历过渡 / 随机游走用
+const DIR_ORDER = ['up','upUpRight','upRight','right','downRight','downDownRight',
+                   'down','downDownLeft','downLeft','left','upLeft','upUpLeft'];
 
-/* ============ State ============ */
-let state={ blinkOn:true, breath:true, after:true,
+/* 幅度分档（单位：格，一格 14px）。原来的米字八向固定 ±3.2 格，这里放到 6.5，正好一倍。
+   6.5 —— 普通表情。上下左右都够走到"眼睛快贴屏幕边"的位置，屏幕还有富余。
+   4.0 —— 带飘浮装饰的六个表情。装饰只跟一部分位移（Zzz 跟 0.70、问号 0.46、三点 0.60），
+          眼睛跑得比装饰快，再大就会压到它们；这六个表情本来也不该大幅扫视。
+   6.0 —— 偷看。它自己还有 ±3 格的横向探出偏移，叠满会贴到屏幕边。
+   3.0 —— 惊讶。眼睛高 24 格撑满屏幕，上下只剩 4 格，再多就被切掉了（实测 3.0 时刚好贴底，收 2.8 留一格） */
+const DIR_AMP_DEF   = 6.5;
+const DIR_AMP_DECOR = 4.0;
+const DIR_AMP_PEEK  = 6.0;
+const DIR_AMP_BIG   = 2.8;
+const DECOR_MOODS = new Set(['cry','shy','speechless','confused','sleep','think']);
+function dirAmp(){
+  // 惊讶 / 被吓：眼睛又宽又高（8×24、8×26），偏移一大就顶出眼眶、撞上右上角的感叹号
+  if(moodName==='surprise' || moodName==='startle') return DIR_AMP_BIG;
+  if(moodName==='peek')     return DIR_AMP_PEEK;
+  if(DECOR_MOODS.has(moodName)) return DIR_AMP_DECOR;
+  return DIR_AMP_DEF;
+}
+
+/* 云台跟随（v13.1）：头往哪边转，眼睛跟着瞟一点点。
+   为什么是"一点点"：真实动物转头时眼睛只在头没跟上的那几十毫秒里偏，
+   头到位了眼睛就回中。所以这里不是把 pan 直接映射成位移，而是：
+     1. 增益 0.15 格/度 —— pan 12°（待机扫视）→ 1.5 格，看得出来但不夸张
+     2. 超过 25° 开始衰减 —— pan 转到 90° 说明头已经对准，眼睛该回中
+     3. 单侧最多 2.2 格，而且"总位移预算 6.5 格"装不下就整个不加，
+        这样绝不可能越出 v13 已经验证过的眼眶边界、也碰不到汗滴问号 */
+const NECK_GAIN  = 0.15;   // 格 / 度
+const NECK_REACH = 25;     // 衰减拐点（度）
+const NECK_MAX   = 2.2;    // 单侧上限（格）
+const DIR_BUDGET = 6.5;    // 眼神总位移预算，和 DIR_AMP_DEF 对齐
+let neckPan = 0;           // 当前云台水平角，-90 ~ 90
+let lastBaseEx = 0;        // 上一帧的基准位移，面板显示用
+function neckEyeOffset(baseDx){
+  const w = 1/(1 + (neckPan*neckPan)/(NECK_REACH*NECK_REACH));
+  // 表情自己在演方向的（带装饰的六个 / 偷看 / 惊讶），只跟 35%，别抢戏
+  const own = (DECOR_MOODS.has(moodName) || moodName==='peek' || moodName==='surprise') ? 0.35 : 1;
+  let off = neckPan * NECK_GAIN * w * own;
+  off = Math.max(-NECK_MAX, Math.min(NECK_MAX, off));
+  if(Math.abs(baseDx + off) > DIR_BUDGET) off = 0;
+  return off;
+}
+
+/* ============ 状态 ============ */
+let state={ blinkOn:true, after:true,
             heart:true, zzz:true, sweat:true, swapThink:true,
-            qmark:true, dots:true, hue:146, lum:100 };
+            qmark:true, dots:true, exclam:true, hue:146, lum:100 };
 let dur=260;
 
 let curMood = cloneMOOD(MOODS.normal);
 let tgtMood = cloneMOOD(MOODS.normal);
 let moodT = 1, moodName='normal';
 
-let curDir=[0,0], tgtDir=[0,0], dirT=1;
+let curDir=[0,0], tgtDir=[0,0], dirT=1;   // 单位向量，长度恒为 1（center 是 0）
+let curAmp=3.2, tgtAmp=3.2;               // 位移幅度（格），随表情分档平滑变化
 let blinkAmt=0, blinkPhase=-1, nextBlink=200, doubleBlink=0;
+let winkHold=0, winkGoal=0;      // wink = 持续闭左眼的状态，不是动作；这两个管"合上/抬起"的过渡
 let frozen=false, fixFrame=null, thinkEnter=null, swFix=null, blinkFix=null, qEnter=null;
-let peekOff=0, peekEnter=null;   // peek horizontal offset: actual value + entry frame (phase starts at 0)
+let jbEnter=null;          // 被吓一跳的入场时刻（果冻 + 感叹号共用一次起跳）
+let exEnter=null;          // 感叹号自己的入场时刻：装饰上线那一帧才开始算，比眼睛晚半拍
+let startleT=null;         // 被吓一跳的起始帧，用来算"多久之后自己放松回默认表情"
+let nonoT=null;            // 摇头的起始帧
+let nodT=null;             // 点头的起始帧（一次性动作，点完自己回 normal）
+
+let shakeMix=0;            // 0 = 正常视线偏移；1 = 完全居中摇头（摇头期间方向偏移被压掉）
+let exSpring=0;            // 感叹号的独立弹簧值，允许比眼睛晚一点点弹出来
+let peekOff=0, peekEnter=null;   // 偷看的横向偏移：实际值 + 进入时刻（相位从 0 起算）
 
 function cloneMOOD(m){
   return {
@@ -344,12 +498,51 @@ function lerpMOOD(A,B,k){
 }
 const ease = k => k<0.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2;
 
+/* ============ 摇头 ============
+   真人摇头不是等幅正弦，是"三个来回、越摇越小、最后停住"。
+   所以 = 衰减包络 × 正弦：env 负责幅度递减，sin 负责来回。
+
+   一个完整周期 2π/0.30 ≈ 21 帧 ≈ 350ms，三个来回 ≈ 1.05 秒
+   （实验数据：真人说"不"的摇头，一个来回 300~400ms，不会更慢）。
+
+   开头 5 帧做淡入（min(1,t/5)）：moodName 是点下去那一刻就改的，
+   但形状还在 260ms 的过渡里。摆幅要是一上来就满格，就会跟形状变化叠成一记突跳 ——
+   跟"被吓一跳"踩过的那个坑是同一个。
+
+   返回单位是"格"。网页里直接加到 ex 上（眼睛跟着甩）；
+   固件里把同一串数喂给 pan 舵机、眼睛不偏，那才是真的摇头。 */
+function headSwing(){
+  /* 一定要带 moodName 判断：摇完切成 normal 之后 nonoT 还留着（那是为了让
+     setMood 里的判断不误清），此时 sin 还在走，会留下 ±0.4 格的残余抖动。
+     实测过：不加这一句，回默认后还摆了 20 多帧。 */
+  if(!isShakeMood() || nonoT===null) return 0;
+  const t = frame - nonoT;
+  return 3.6 * Math.exp(-t/38) * Math.min(1, t/5) * Math.sin(t*0.30);
+}
+// 两个摇头表情共用这一条曲线：眯眼摇头、闭眼摇头，动作完全一样，只是眼形不同
+function isShakeMood(){ return moodName==='nono' || moodName==='nonoBlink'; }
+
+/* 点头：摇头的竖向版，但"点两下就结束"，所以不用连续 sin。
+   连续 sin 会正负交替 —— 眼睛上下抖四五次，那是"打嗝"，不是点头。
+   真正的点头是"下去 → 回中 → 再下去"，全程不下穿到反方向，
+   所以一下 = sin(kπ) 的半个正弦（k 从 0 到 1），保证首尾都精确落在 0。
+   15 帧（0.25s）一下，共两下，第二下力度 0.72（真人点头第二下都会轻一点）。
+   幅度 3.4 格（≈48px）：1.15 格那版在 448px 的屏上只有 16px，等于没点。
+   3.4 格时眼睛上下缘分别在 6.1 / 25.9 格，屏幕 0~32 格，两头都还有余量。 */
+function headNod(){
+  if(moodName!=='nod' || nodT===null) return 0;
+  const t = frame - nodT;
+  if(t > 30) return 0;                       // 两下点完，静住等收场
+  const k = (t % 15)/15;
+  return 3.4 * Math.sin(k*Math.PI) * (t < 15 ? 1 : 0.72);
+}
+
 function liveMood(){ return lerpMOOD(curMood,tgtMood,ease(Math.min(1,moodT))); }
 
-/* Which phase the "think" size-swap is sitting at:
-   0 = left big / right small, 1 = left small / right big, swinging like a pendulum.
-   If you switch away mid-swing, what is on screen has nothing to do with the canonical
-   pose recorded in curMood, so interpolating to the next expression snaps first. Bake it in. */
+/* "思考"表情里的大小眼互换，当前摆到了哪个相位：
+   0 = 左大右小，1 = 左小右大，中间来回摆（像钟摆）。
+   切走的那一刻如果正摆在半路，画面上的形态和 curMood 记的标准形态压根不是一回事，
+   直接往新表情插值就会先"闪"一下 —— 所以切走时要先把相位烘进起点。 */
 function thinkSwapK(){
   if(!state.swapThink || moodName!=='think') return null;
   if(swFix!==null) return swFix;
@@ -360,8 +553,8 @@ function thinkSwapK(){
 function setMood(name,d){
   if(!MOODS[name]) return;
   curMood = liveMood();
-  // leaving "think": use the current swing position as the transition start, so it carries
-  // on from wherever it is instead of snapping back to the canonical pose and then moving.
+  // 从"思考"切走：把眼睛当前摆到的位置作为过渡起点，从摆到哪儿就从哪儿接着走，
+  // 不会再"啪"地弹回标准大小眼再开始过渡。
   const k = thinkSwapK();
   if(k!==null){
     const s = lerpMOOD(THINK_A, THINK_B, k);
@@ -373,23 +566,42 @@ function setMood(name,d){
   moodT = 0; dur = d || dur;
   moodName = name;
   thinkEnter = null;
-  peekEnter = null;                     // every entry into peek starts from "not yet leaning out"
-  qEnter = null;                        // every entry into confused pops the question mark from scratch
+  peekEnter = null;                     // 每次切进偷看，都从"还没探出去"开始
+  qEnter = null;                        // 每次切进困惑，问号都从头弹一次
+  jbEnter = null;                       // 每次切进"被吓一跳"，果冻和感叹号都从头来
+  exEnter = null;
+  /* normal 是"被吓"自己收回时切过去的，这时候不能清计时 —— 清了回弹就断了；
+     其余情况（包括再点一次"被吓"）都要清，好让拉长从头来一遍。 */
+  if(name!=='normal') startleT = null;
+  /* 摇头同理：normal 是它自己摇完收回去的，不能在这里清零，
+     否则最后一帧的摆幅会被掐断。 */
+  if(name!=='normal') nonoT = null;
+  /* 点头同理：normal 是它自己点完收回去的，这里不能清零，否则最后一下会被掐断。 */
+  if(name!=='normal') nodT = null;
+  /* 摇头是"整个头在摆"，不是"眼睛在看某处"，所以一进来就把视线打回中心。
+     shakeMix 那边还会用 8 帧渐变压掉残余（setDir 本身是 260ms 的平滑过渡，
+     光靠它前几帧眼睛还是偏的）。这一句是"硬归位"，那句是"软过渡"，两道一起上。 */
+  if(name==='nono' || name==='nonoBlink'){ setDir('center'); neckPan = 0; }
+  exSpring = 0;
   document.getElementById('moodNow').textContent = name;
 }
+// 面板上显示时钟点位，比 upUpRight 这种名字好认
+const DIR_LABEL = { center:'center', up:'12 点', upUpRight:'1 点', upRight:'2 点',
+  right:'3 点', downRight:'4 点', downDownRight:'5 点', down:'6 点',
+  downDownLeft:'7 点', downLeft:'8 点', left:'9 点', upLeft:'10 点', upUpLeft:'11 点' };
 function setDir(name,d){
   if(!DIRS[name]) return;
   curDir = [curDir[0]+(tgtDir[0]-curDir[0])*ease(Math.min(1,dirT)),
             curDir[1]+(tgtDir[1]-curDir[1])*ease(Math.min(1,dirT))];
   tgtDir = DIRS[name].slice();
   dirT = 0; dur = d || dur;
-  document.getElementById('dirNow').textContent = name;
+  document.getElementById('dirNow').textContent = DIR_LABEL[name] || name;
 }
 
-/* ============ Drawing ============ */
-/* Colour string cache: `bright` drifts every frame, and we used to build a fresh hsla
-   string per cell and hand it to fillStyle - thousands of colour parses per frame. Quantising
-   to 1/32 is invisible to the eye, and with the cache it costs almost nothing. */
+/* ============ 绘制 ============ */
+/* 颜色字符串缓存：
+   bright 每帧都在微变，原来每画一格就拼一个新 hsla 字符串丢给 fillStyle，
+   一帧要解析上千次颜色。量化到 1/32 肉眼完全看不出，配上缓存后几乎零成本。 */
 const _colCache = new Map();
 function clearColCache(){ _colCache.clear(); }
 function col(a){
@@ -397,64 +609,97 @@ function col(a){
   let s = _colCache.get(q);
   if(s!==undefined) return s;
   const c=THEME.eye, l=state.lum/100;
-  s = `hsla(${c.h},${c.s}%,${Math.min(96,c.l*l)}%,${q})`;
+  s = `hsla(${c.h.toFixed(1)},${c.s.toFixed(0)}%,${Math.min(96,c.l*l)}%,${q})`;
   if(_colCache.size>256) _colCache.clear();
   _colCache.set(q,s);
   return s;
 }
 
-function drawEye(g,shape,cx,dx,dy,bright,rainbow){
+function drawEye(g,shape,cx,dx,dy,bright,rainbow,kw){
+  if(kw===undefined) kw = 1;                       // 横向缩放：1 = 原样。只有"被吓"会传 <1
+  const cw = Math.max(1, Math.ceil(P*kw));         // 每列宽。ceil 是为了不让列之间留缝
   let lo=99, hi=-1, minTop=99;
   for(let i=0;i<COLS;i++){ if(shape.top[i]<=shape.bot[i]){ if(i<lo)lo=i; if(i>hi)hi=i; if(shape.top[i]<minTop)minTop=shape.top[i]; } }
   if(hi<0) return;
-  const mT = Math.round(minTop+dy+EYE_CY);   // cell row, only used to test the top edge
+  const mT = Math.round(minTop+dy+EYE_CY);   // 格行号，只用来判断"有没有贴顶"
 
   for(let i=lo;i<=hi;i++){
     const t=shape.top[i], b=shape.bot[i];
     if(t>b) continue;
     const edgeK = (i===lo||i===hi) ? 0.58 : 1;
 
-    /* Sub-pixel positioning: multiply the cell index by P first, then round.
-       We used to write Math.round(cell)*P - positions quantised to a whole cell (14px),
-       so any pan or bob jumped a full cell at a time. That was the stutter.
-       Now the unit is one screen pixel; blocks stay hard-edged at 14px, shape unchanged. */
-    const x  = Math.round((cx-6+i+dx)*P);
+    /* 亚像素定位：先把格号乘 P、再取整。
+       原来写的是 Math.round(格号)*P —— 位置被量化到整格（14px），
+       所以眼睛平移、上下浮动时是一格一格地蹦，这就是"卡"的来源。
+       现在量化单位降到 1 个屏幕像素，块本身仍是硬边 14px，形状不变、只是走得顺。
+       kw<1 时以眼睛中心 cx 为原点横向收窄（第 i 列的中心落在 cx+(i-5.5)*kw）。 */
+    const x  = Math.round((cx+(i-6)*kw+dx)*P);
     const yT = Math.round((t+dy+EYE_CY)*P);
     const yB = Math.round((b+dy+EYE_CY)*P) + P;
     if(yB<=yT) continue;
 
-    const t0 = Math.round(t+dy+EYE_CY), b0 = Math.round(b+dy+EYE_CY);   // cell rows, for the checks below
+    const t0 = Math.round(t+dy+EYE_CY), b0 = Math.round(b+dy+EYE_CY);   // 格行号，仅供下面判断用
 
-    // (1) opaque base first: the eye is solid, no particle shows through it
+    // ① 整列先铺一层不透明底：眼球是实心的，后面的爱心/粒子一颗都透不过来
     g.fillStyle = EYE_BASE;
-    g.fillRect(x, yT, P, yB-yT);
+    g.fillRect(x, yT, cw, yB-yT);
 
-    // (2) top highlight is a single row
+    // ② 顶部高光只占一行
     let y = yT, row = t0;
     if((b0-t0)>4 && t0 <= mT+1){
       g.fillStyle = `hsla(${THEME.glow.h},${THEME.glow.s}%,${Math.min(97,THEME.glow.l*bright)}%,0.97)`;
-      g.fillRect(x, yT, P, P);
+      g.fillRect(x, yT, cw, P);
       y = yT + P; row = t0 + 1;
     }
     if(y>=yB) continue;
 
-    // (3) the rest is one flat column - a single stroke
+    // ③ 余下整段同色 —— 一列一笔
     if(rainbow){
-      // rainbow band: hue advances along columns and rows plus time, giving a diagonal flow
+      // 彩虹带：色相沿列和行同时推进，再叠时间，形成斜向流光（逐行必须）
       for(let yy=y; yy<yB; yy+=P){
         g.fillStyle = `hsla(${(frame*4 + (cx-6+i)*22 + row*9 + 600) % 360},100%,${Math.min(74,62*bright)}%,1)`;
-        g.fillRect(x, yy, P, Math.min(P, yB-yy));
+        g.fillRect(x, yy, cw, Math.min(P, yB-yy));
         row++;
       }
     } else {
       g.fillStyle = col(bright*edgeK);
-      g.fillRect(x, y, P, yB-y);
+      g.fillRect(x, y, cw, yB-y);
     }
   }
 }
 
-/* ============ Heart particles ============ */
-// 4x4 cell pixel heart (bit pattern)
+/* ============ 死鱼眼 · X ============ */
+/* 形状数组是"每列一条上沿下沿"，表达不了叉号（一列上 X 是两个分开的点），
+   所以这只眼睛走另一条路：形状给空壳，这里直接逐行铺两段横条，拼出两条对角线。
+
+   为什么要逐行而不是逐点：对角线上每隔一段才落一个方块，会断成虚线。
+   按行铺、每行两格宽，行与行之间自然咬合，勾出来才是实心的线。
+
+   H_ 取 11 行、W_ 取 6 格：默认眼睛是 6 格宽 14 格高，X 比它矮 3 格，
+   宽度一样 —— 比原来那版 5×9 整整大一圈（那版只有正常眼睛的一半高，看着像缩水）。 */
+function drawDeadX(g, cx, swayX, swayY){
+  const W_ = 6, H_ = 11;
+  const x0 = cx - W_/2 + swayX;
+  const y0 = EYE_CY - H_/2 + swayY;
+
+  // 先清一块底：空形状什么都不画，不铺底就会把上一帧的竖条余晖透出来
+  g.fillStyle = EYE_BASE;
+  g.fillRect(Math.round((x0-1.2)*P), Math.round((y0-1.6)*P),
+             Math.round(P*(W_+2.4)), Math.round(P*(H_+3.2)));
+
+  g.fillStyle = rgba_(THEME.dead, 1);
+  for(let r=0; r<H_; r++){
+    const u = r/(H_-1);
+    const xa = x0 + W_*u;          // 左上 → 右下
+    const xb = x0 + W_*(1-u);      // 右上 → 左下
+    const yy = Math.round((y0+r)*P);
+    g.fillRect(Math.round((xa-0.5)*P), yy, P*2, P);
+    g.fillRect(Math.round((xb-0.5)*P), yy, P*2, P);
+  }
+}
+
+/* ============ 爱心粒子 ============ */
+// 4×4 格的像素心（bit 图案）
 const HEART7 = [
   ".##.##.",
   "#######",
@@ -464,15 +709,15 @@ const HEART7 = [
   "..###..",
   "...#..."
 ];
-const HEART_COL = THEME.heart;   // palette lives in THEME
+const HEART_COL = THEME.heart;   // 色板在 THEME 里
 const MAXP = 12;
 let parts = [], heartNext = 0;
-// Overall opacity: fades in on entering "love", fades out on leaving.
-// We used to stop drawing the moment `decor` changed, so hearts already in the air vanished
-// at once (most obvious switching to rainbow, where the whole eye changes colour).
+// 整体不透明度：切进「喜欢」时淡入，切走时淡出。
+// 之前 decor 一变就立刻停止绘制，已经飘在半空的爱心会集体"啪"地消失（切彩虹最明显，
+// 因为彩虹把眼睛整个换掉了，反差最大）。现在让它们把剩下的路飘完，同时一起淡下去。
 let heartFade = 1;
-// Only fade on exit if we actually entered "love": 7 particles are pre-seeded so entering
-// "love" is not empty, and they must not drift out by themselves on a fresh page.
+// 只有"真的进过「喜欢」"才需要离场渐隐。开着页面默认是普通表情，
+// 但内存里预置了 7 颗粒子（为了切进「喜欢」时不是空的），不能让它们自己飘出来。
 let heartOn = false;
 
 function hexA(hex,a){
@@ -483,11 +728,11 @@ function hexA(hex,a){
 function spawnHeart(birth){
   const r = Math.random();
   let y0;
-  if(r < 0.60)      y0 = 32 + Math.random()*3;        // below the screen, out of sight
-  else if(r < 0.86) y0 = 18 + Math.random()*14;       // lower half of the eye -> bottom of screen
-  else              y0 = 6  + Math.random()*12;       // around the middle of the eye
+  if(r < 0.60)      y0 = 32 + Math.random()*3;        // 屏幕下方之外，看不见的地方起步
+  else if(r < 0.86) y0 = 18 + Math.random()*14;       // 眼睛下半 → 屏幕底部
+  else              y0 = 6  + Math.random()*12;       // 眼睛中部附近
 
-  const vy   = -(0.30 + Math.random()*0.16);          // 0.30~0.46 cells per frame
+  const vy   = -(0.30 + Math.random()*0.16);          // 0.30~0.46 格/帧
   const life = Math.round((y0-2)/Math.abs(vy) * 1.18);
 
   parts.push({
@@ -495,19 +740,19 @@ function spawnHeart(birth){
     x0: 2 + Math.random()*34,
     y0: y0,
     vy: vy,
-    amp: 0.10 + Math.random()*0.16,                   // sway half-amplitude (cells)
+    amp: 0.10 + Math.random()*0.16,                   // 摆动半幅（格）
     ph:  Math.random()*Math.PI*2,
-    fr:  0.07 + Math.random()*0.06,                   // sway frequency
+    fr:  0.07 + Math.random()*0.06,                   // 摆动频率
     unit: Math.round((Math.random()<0.55 ? 2 : 3) * S),
     col: HEART_COL[Math.random()<0.06 ? 5 : Math.floor(Math.random()*5)],
     life: life
   });
 }
 
-// already looping on page load, no 2s wait for the first heart
+// 页面一打开就已在循环中，不用等 2 秒才看到第一颗
 for(let i=0;i<7;i++) spawnHeart(-Math.random()*60);
 
-// brightness from its own lifetime alone (exit fade not included)
+// 这颗心"因为自己寿命"该有多亮（不含离场淡出）
 function heartAlpha(p){
   const age = frame - p.birth;
   if(age < 0) return 0;
@@ -515,19 +760,19 @@ function heartAlpha(p){
   if(t < 0 || t >= 1) return 0;
   let a = t<0.16 ? t/0.16 : (t>0.58 ? 1-(t-0.58)/0.42 : 1);
   const y = p.y0 + p.vy*age;
-  if(y < 6) a *= Math.max(0, (y-1)/5);         // vanish before the top edge clips it
+  if(y < 6) a *= Math.max(0, (y-1)/5);         // 没到顶就消失，别在半空被屏幕边缘切断
   return a;
 }
 
 function updateHearts(spawn=true){
-  // spawn: every 15~30 frames, max 12 alive; no respawn during exit, no recycling either
+  // 生成：间隔 15~30 帧，上限 12 颗；离场阶段不再补新的，也不再回收
   if(spawn){
     if(heartNext<=0 && parts.length<MAXP){
       spawnHeart(frame);
       heartNext = 15 + Math.random()*16;
     }
     heartNext--;
-    // recycle: expired ones are dropped
+    // 回收：过期的直接移除
     for(let i=parts.length-1;i>=0;i--){
       if(frame - parts[i].birth > parts[i].life) parts.splice(i,1);
     }
@@ -540,16 +785,16 @@ function drawHearts(g, fade=1){
     const age = frame - p.birth;
     if(age < 0) continue;
 
-    // On exit drop the upward speed to 1/5 so hearts hang in the air and dim in place,
-    // instead of flying on and being covered by the eye (which still reads as "suddenly gone").
+    // 离场时把上飘速度降到 1/5：让爱心"停在半空慢慢暗下去"，
+    // 而不是继续飞、飞进眼睛背后被整块遮掉（那样看着还是"突然没了"）。
     const ae = p.exitAge!==undefined ? p.exitAge + (age - p.exitAge)*0.20 : age;
 
     const y = p.y0 + p.vy*ae;
     if(y < -4 || y > 34) continue;
     const x = p.x0 + Math.sin(ae*p.fr + p.ph) * p.amp * 4;
 
-    // On exit freeze the brightness they had at the exit frame and let only the global fade
-    // move. Otherwise most hearts are already near the top and very dim, and another fade on
+    // 离场时用"离场那一刻的亮度"冻住，只让整体 fade 往下走。
+    // 否则大部分心本来就快飘到顶、亮度过低，再叠一层淡出就成了"看不出在淡，只看到没了"。
     let a = p.exitA !== undefined ? p.exitA : heartAlpha(p);
     a *= fade;
     if(a < 0.02) continue;
@@ -587,22 +832,26 @@ function drawBits(g, bits, gx, gy, unit, colorStr){
 }
 
 function drawZzz(g,ddx,ddy,sh){
-  const T = 270;                                   // ~4.5s per round
+  const T = 270;                                   // 约 4.5s 一轮
   const cyc = frozen && fixFrame!==null ? 0.42 : (frame % T)/T;
   const rise = cyc * 1.0;
 
-  // follows the eye at about a third of its amplitude, clamped so it never leaves the panel
-  const fx = Math.max(-1.9, Math.min(1.9, ddx*0.52 + (sh.dx||0)*0.35));
-  const fy = Math.max(-1.3, Math.min(1.3, ddy*0.35 + (sh.dy||0)*0.35));
+  /* 跟着眼睛走：Zzz 跟七成、上限 3 格。
+     v12 是跟 0.52、限 1.9 格，那时位移只有 3.2 格，够用；
+     现在 sleep 的位移放到 4 格，眼睛跑得比 Zzz 快 1.28 格，正好把原来 1.6 格的间隙吃掉——
+     所以系数提到 0.70、上限放到 3.0 格，让 Zzz 一直贴在眼睛外侧。
+     （再往上会顶到屏幕右边缘，35.2+字宽 3.0 已经到 38.8，只差 1.2 格） */
+  const fx = Math.max(-3.0, Math.min(3.0, ddx*0.70 + (sh.dx||0)*0.35));
+  const fy = Math.max(-1.8, Math.min(1.8, ddy*0.42 + (sh.dy||0)*0.35));
 
   let fade = 1;
   if(cyc > 0.76) fade = Math.max(0, 1-(cyc-0.76)/0.24);
 
-  // diagonal, lower-left to upper-right; biggest at the bottom-left, smallest at the top-right
+  // 贴着右边缘斜着往上，最大的在左下，最小的在右上
   const list = [
-    {x:29.6, y:10.0, t0:0.03, t1:0.13, u:3.2*S},   // bottom-left, largest
+    {x:29.6, y:10.0, t0:0.03, t1:0.13, u:3.2*S},   // 最左下，最大
     {x:32.6, y: 6.6, t0:0.19, t1:0.29, u:2.7*S},
-    {x:35.2, y: 3.7, t0:0.34, t1:0.44, u:2.3*S}    // top-right, smallest
+    {x:35.2, y: 3.7, t0:0.34, t1:0.44, u:2.3*S}    // 最右上，最小
   ];
 
   for(let i=0;i<list.length;i++){
@@ -617,9 +866,9 @@ function drawZzz(g,ddx,ddy,sh){
   }
 }
 
-/* ============ Confused - question mark pop ============ */
-// The whole glyph scales on one under-damped spring: 0 -> 123% peak -> 95% -> settles at 100%.
-// At this resolution we cannot warp the image, so block edge length (4/5/6px) plus non-uniform
+/* ============ 困惑 · 问号弹出 ============ */
+// 一整只问号按同一个欠阻尼弹簧缩放：0 → 峰值 123% → 回落 95% → 100% 稳定。
+// 低分辨率不做图像变形，用像素块边长（4/5/6px）+ 横纵不等比来模拟 Squash & Stretch。
 const Q = (()=>{
   const cx=34.10, cy=4.60, r=1.70;
   const A0=178, A1=392, NA=26;
@@ -634,7 +883,7 @@ const Q = (()=>{
     const u=i/NB;
     pts.push([ex+(tx-ex)*u, ey+(ty-ey)*u]);
   }
-  // scale anchor near the bottom edge, so it grows upward instead of into the eye
+  // ax/ay 是缩放锚点，取在问号下沿附近 —— 弹起时往上长，不往眼睛里挤
   return { pts, dot:[34.70, 9.05], ax:34.10, ay:8.75 };
 })();
 
@@ -649,14 +898,69 @@ function drawQ(g,kx,ky,ox,oy,alpha){
     const X=ax+(p[0]-ax)*kx+ox, Y=ay+(p[1]-ay)*ky+oy;
     g.fillRect(Math.round(X*P)-(w>>1), Math.round(Y*P)-(h>>1), w, h);
   }
-  // the tip is one step brighter, like a specular highlight
+  // 收笔的那一点，比笔画亮一档，像有个小高光
   const d=Q.dot;
   g.fillStyle=`hsla(${THEME.icon.h},${THEME.icon.s}%,93%,${Math.min(1,alpha)})`;
   g.fillRect(Math.round((ax+(d[0]-ax)*kx+ox)*P)-(w>>1),
              Math.round((ay+(d[1]-ay)*ky+oy)*P)-(h>>1), w, h);
 }
 
-  // cycle lengths vary so it never repeats on a mechanical 3s beat
+/* ============ 被吓一跳 · 感叹号 ============ */
+/* 形态照着卡通片里的惊叹号：上宽下窄的竖条 + 下面一个独立的方点。
+   两个坑都踩过了，记在这里：
+   ① 用"盖方块"的方式画竖条，每排方块本身有 1 格宽，会把 2 格的条撑成 3 格，
+      所以改成直接填矩形，宽度才可控；
+   ② 条尾和方点必须留够 1 格的口子，不然缩放后两者黏成一个"十字"。
+   和问号共用同一套锚点缩放：ax/ay 取最下沿，弹起时往上长，不往眼睛那边挤。 */
+const EX = (()=>{
+  const ax=34.15, ay=9.80;
+  const rows=[], N=7, y0=2.50, y1=7.05;
+  for(let i=0;i<N;i++){
+    rows.push({
+      a: y0+(y1-y0)*i/N,
+      b: y0+(y1-y0)*(i+1)/N,
+      hw: 1.00 - 0.50*i/(N-1)      // 半宽 1.0 格 → 0.5 格（整宽 2.0 → 1.0）
+    });
+  }
+  return { rows, dot:[ax,8.55], dotR:0.62, ax, ay };
+})();
+
+function drawExcl(g,kx,ky,ox,oy,alpha){
+  if(alpha<=0.02 || kx<=0.03 || ky<=0.03) return;
+  const ax=EX.ax, ay=EX.ay;
+  g.fillStyle=rgba_(THEME.exclaim, Math.min(1,alpha));
+  for(const r of EX.rows){
+    const X0=ax-r.hw*kx+ox, X1=ax+r.hw*kx+ox;
+    const Y0=ay+(r.a-ay)*ky+oy, Y1=ay+(r.b-ay)*ky+oy;
+    g.fillRect(Math.round(X0*P), Math.round(Y0*P),
+               Math.max(1,Math.round((X1-X0)*P)),
+               Math.max(1,Math.round((Y1-Y0)*P)+1));   // +1 盖住排间缝隙
+  }
+  // 下面那个点：一整块方点，不做十字补齐（做了会跟竖条连成 T 字）
+  const d=EX.dot, r=EX.dotR;
+  const X=ax+(d[0]-ax)*kx+ox, Y=ay+(d[1]-ay)*ky+oy;
+  const rw=Math.max(2, Math.round(P*kx*r*2));
+  g.fillRect(Math.round(X*P)-(rw>>1), Math.round(Y*P)-(rw>>1), rw, rw);
+}
+
+/* 爆炸放射线：10 条，长短交替。只在被吓的头 0.3 秒出现，然后迅速收掉，
+   不然感叹号上永远挂着一圈刺，看着像太阳。 */
+function drawBurst(g,cx,cy,k,alpha){
+  if(k<=0.02 || alpha<=0.02) return;
+  g.fillStyle=rgba_(THEME.burst, Math.min(1,alpha)*0.9);
+  const N=10, sw=Math.max(1,Math.round(P*0.55));
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2-0.4;
+    const r0=2.6+0.6*k, r1=r0+(1.0+(i%2?1.5:0.4))*k;
+    for(let s=0;s<=4;s++){
+      const r=r0+(r1-r0)*s/4;
+      const X=cx+Math.cos(a)*r, Y=cy+Math.sin(a)*r*0.85;
+      g.fillRect(Math.round(X*P), Math.round(Y*P), sw, sw);
+    }
+  }
+}
+
+// 轮次长度不一样，避免"机械地每 3 秒重复一次"
 const Q_CYC=[152,206,168,232,188], Q_TOTAL=946;
 function qPhase(t){
   let u=((t%Q_TOTAL)+Q_TOTAL)%Q_TOTAL, i=0;
@@ -664,23 +968,23 @@ function qPhase(t){
   return {t:u, period:Q_CYC[i]};
 }
 
-  // spring step response: wn=19 rad/s, zeta=0.50 -> 116% at 0.19s, 95% at 0.38s, settled by 0.75s
+// 弹簧阶跃响应：ωn=19 rad/s、ζ=0.50 → 0.19s 冲到 116%，0.38s 落到 95%，0.75s 收敛
 function qSpring(t, period){
   const WN=19/60, ZETA=0.50;
   const WD=WN*Math.sqrt(1-ZETA*ZETA), DZ=ZETA*WN;
   const k = 1 - Math.exp(-DZ*t)*(Math.cos(WD*t)+(DZ/WD)*Math.sin(WD*t));
 
-  const j = (k-1)*0.22;               // stretch on overshoot, squash on the rebound - the jelly feel
+  const j = (k-1)*0.22;               // 过冲时纵向拉长，回落时压扁 —— 果冻感就来自这里
   let kx=k*(1-j), ky=k*(1+j);
   let a=1, y=0, wob=0;
 
-  // one light sideways wobble after it lands, exponentially damped
+  // 落稳后一次很轻的左右摇摆，指数衰减
   if(t>18){
     const u=t-18;
     wob = 0.42*Math.exp(-u/9)*Math.sin(u*0.58);
   }
 
-  // finish: shrink + drift up + fade
+  // 收尾：缩小 + 上飘 + 淡出
   const outStart=period-15;
   if(t>=outStart){
     const u=Math.min(1,(t-outStart)/15);
@@ -693,16 +997,16 @@ function qSpring(t, period){
   return {kx,ky,a,y,wob};
 }
 
-/* ============ Think - three dots ============ */
-// Same idea as Material / iMessage typing indicators: three dots 2pi/3 out of phase,
-// each lifted by a sine, growing brighter and larger at the peak so it reads as a wave.
+/* ============ 思考 · 三点等待 ============ */
+// 跟 Material / iMessage 的 typing indicator 同一套：三点相位错开 2π/3，
+// 各自沿正弦抬起，抬到顶时同时变亮变大，看起来像有人在一路"点"过去。
 function drawDots(g,ox,oy,alpha){
   if(alpha<=0.02) return;
   const baseX=30.40, baseY=5.45, gap=3.05;
   for(let k=0;k<3;k++){
-    const ph=frame*0.104 - k*2.094;             // 1/3 cycle apart, lifting in sequence
+    const ph=frame*0.104 - k*2.094;             // 三点相位差 1/3 周期，依次抬起
     const s=Math.max(0,Math.sin(ph));
-    const e=s*s*(3-2*s);                       // smoothstep, snappier rise and fall
+    const e=s*s*(3-2*s);                       // smoothstep，起落更"弹"
     const x=baseX+k*gap+ox;
     const y=baseY-e*1.25+oy;
     const sz=1.02+0.72*e;                      // 4.1px → 7.0px
@@ -714,10 +1018,10 @@ function drawDots(g,ox,oy,alpha){
 
 let frame=0;
 
-/* ---- Time base: convert real elapsed time into "60fps frame numbers" ----
-   We used to hardcode dtMs=1000/60 and frame++ per tick, which tied animation speed to the
-   refresh rate: twice as fast on a 120Hz panel, half speed when frames drop.
-   Now we advance by real milliseconds, so speed matches everywhere. */
+/* ---- 时间基准：把真实经过的时间换算成"60fps 帧号" ----
+   原来写死 dtMs=1000/60、每帧 frame++，动画速度就被绑死在屏幕刷新率上：
+   120Hz 屏会快一倍、掉帧时会慢一半，看着又急又卡。
+   现在按真实毫秒推进，任何屏幕上速度都一致；多余的刷新回调直接跳过重绘。 */
 const STEP_MS = 1000/60;
 let _lastTs = 0, _accMs = 0, _fpsN = 0, _fpsT = 0;
 
@@ -726,13 +1030,13 @@ function render(ts){
 
   let steps = 1;
   if(frozen && fixFrame!==null){
-    frame = fixFrame;                        // screenshot mode: lock the frame number
+    frame = fixFrame;                        // 截图模式：锁定帧号，不随真实时间走
   } else {
     if(!_lastTs) _lastTs = ts;
     let dt = ts - _lastTs; _lastTs = ts;
-    if(dt > 120) dt = 120;                   // do not catch up dozens of frames after a tab switch
+    if(dt > 120) dt = 120;                   // 切走标签页再回来，不要一次补几十帧
     _accMs += dt;
-    if(_accMs < STEP_MS - 1){                // high refresh: not a full logical frame yet, skip the redraw
+    if(_accMs < STEP_MS - 1){                // 高刷屏：还不够一个逻辑帧，跳过这次重绘
       requestAnimationFrame(render); return;
     }
     steps = Math.min(2, Math.max(1, Math.floor(_accMs/STEP_MS)));
@@ -743,13 +1047,50 @@ function render(ts){
   else { ctx.fillStyle='#000a04'; }
   ctx.fillRect(0,0,W,H);
 
-  const dtMs = steps*STEP_MS;                // logical time actually advanced this frame
+  const dtMs = steps*STEP_MS;                // 本帧实际推进的逻辑时间
   if(!frozen && moodT<1) moodT = Math.min(1, moodT + dtMs/dur);
   if(!frozen && dirT<1)  dirT  = Math.min(1,  dirT  + dtMs/dur);
 
+  /* 被吓一跳是一次性事件，不是一种状态：第 40 帧（≈0.67s）开始收回，回到默认表情。
+     收回动作和形状过渡同时发生，所以看起来是"被拽回去"，不是"淡出"。
+     留 normal 时不清 startleT —— 回弹要跑完（到第 66 帧），不然半路断掉会一顿。 */
+  if(!frozen){
+    if(moodName==='startle'){
+      if(startleT===null) startleT = frame;
+      else if(frame - startleT >= 40) setMood('normal');
+    } else if(moodName!=='normal'){
+      startleT = null;
+    } else if(startleT!==null && frame - startleT > 70){
+      startleT = null;
+    }
+
+    /* 摇头也是"一次性动作"：摇完就停，不是一种会一直摆着的状态。
+       收手的时机挑在 sin 的零点上 —— sin(t*0.30)=0 的周期是 t≈10.47，
+       第 6 个零点在 t≈62.8，此刻摆幅本来就归零，切走不会掐断半下。 */
+    if(isShakeMood()){
+      if(nonoT===null) nonoT = frame;
+      else if(frame - nonoT >= 62) setMood('normal');
+    } else if(moodName!=='normal'){
+      nonoT = null;
+    } else if(nonoT!==null && frame - nonoT > 90){
+      nonoT = null;
+    }
+
+    /* 点头也是"一次性动作"：点两下就结束，不是一种会一直点头的状态。
+       headNod 在 t>30 已经归零，这里再等 2 帧（让最后一帧的 0 真的画出去）就收场。 */
+    if(moodName==='nod'){
+      if(nodT===null) nodT = frame;
+      else if(frame - nodT >= 32) setMood('normal');
+    } else if(moodName!=='normal'){
+      nodT = null;
+    } else if(nodT!==null && frame - nodT > 80){
+      nodT = null;
+    }
+  }
+
   let sh = liveMood();
 
-  // think: eye size swap
+  // 思考：大小眼互换
   if(state.swapThink && moodName==='think'){
     if(thinkEnter===null && moodT>=1) thinkEnter = frame;
     const k = thinkSwapK();
@@ -759,13 +1100,21 @@ function render(ts){
     }
   }
 
-  const ddx = curDir[0]+(tgtDir[0]-curDir[0])*ease(Math.min(1,dirT));
-  const ddy = curDir[1]+(tgtDir[1]-curDir[1])*ease(Math.min(1,dirT));
+  /* 位移 = 单位向量 × 幅度。
+     幅度跟表情分档（惊讶要收、带装饰的六个要收），单独平滑，约 0.3s 到位，
+     这样"切表情"改的是幅度、"转视线"改的是方向，两件事互不干扰，也不会跳动。 */
+  tgtAmp = dirAmp();
+  if(frozen) curAmp = tgtAmp;
+  else curAmp += (tgtAmp - curAmp) * (1 - Math.pow(0.84, steps));
 
-  // peek: slow sideways drift - lean out, pull back a little, lean out again, hold, swap sides
-  // This offset used to be added straight to ex: landing on phase 0.3 jumped from 3.0, so
-  // entering from another expression snapped, and leaving snapped back to centre.
-  // Now it lives in peekOff: target from the phase, actual value follows smoothly.
+  const ux = curDir[0]+(tgtDir[0]-curDir[0])*ease(Math.min(1,dirT));
+  const uy = curDir[1]+(tgtDir[1]-curDir[1])*ease(Math.min(1,dirT));
+  const ddx = ux*curAmp, ddy = uy*curAmp;
+
+  // 偷看：整体缓慢横移，探出 → 缩回一点 → 再探出 → 停 → 换边
+  // 以前这段偏移是直接加到 ex 上的：相位落在 0.3 就从 3.0 起跳，
+  // 从别的表情切进来会瞬移，切走时又会"啪"地弹回中间。
+  // 现在偏移单独存成 peekOff，目标由相位算、实际值平滑跟随，进出都连续。
   let peekTgt = 0;
   if(moodName==='peek'){
     if(peekEnter===null) peekEnter = frame;
@@ -780,30 +1129,49 @@ function render(ts){
     else               peekTgt = -2.2*(1-(pt-0.84)/0.16);
   }
   peekOff += (peekTgt - peekOff) * (1 - Math.pow(0.80, steps));
-  const ex = ddx + peekOff;
+  const baseEx = ddx + peekOff;              // 表情自带的视线
+  lastBaseEx = baseEx;
+  const neckOff = neckEyeOffset(baseEx);      // 云台带来的额外一瞟
+  const swingX = headSwing();                 // 摇头的横向摆幅（格），其它表情恒为 0
 
-  /* "blink" and "sleep" are already a single line - stacking auto-blink on top gives a line
-     that jitters up and down, which reads as broken. So when the shape is already closed,
-     auto-blink stops. On leaving, re-roll the timer so we do not blink on reopening. */
-  const eyesShut = (moodName==='blink' || moodName==='sleep');
+  /* 「摇头只能在中间摇」——不许带着时钟方向的偏移摇。
+     否则"眼睛已经偏到 3 点 6.5 格"再叠 3 格摆幅，会直接顶出眼眶，
+     而且看起来是斜着眼甩，不是摇头。
+     0.45 是刻意取快的：3 帧压掉 91%、4 帧压掉 96%（约 67ms），
+     用 0.72 的话要 11 帧才归中，前 130ms 等于"在右边摇第一下"——
+     实测过，那一眼就能看出来不对。 */
+  shakeMix += ((isShakeMood()?1:0) - shakeMix) * (1 - Math.pow(0.45, steps));
+  const ex = (baseEx + neckOff) * (1 - shakeMix) + swingX;
+
+  /* 闭眼 / 睡着这两个表情本身就是一条横线，再叠一次自动眨眼就成了
+     "横线上下抽"，很别扭 —— 所以形态已经闭合时，自动眨眼直接停摆。
+     退出闭眼表情时重新掷计时器，避免一睁眼立刻补眨一下。 */
+  /* 闭眼 / 睡着本身不是"眼睛"了，再叠一次自动眨眼很别扭，所以形态一闭合就停摆。 */
+  const eyesShut = (moodName==='blink' || moodName==='sleep' || isShakeMood());
   if(state.blinkOn && !eyesShut){
     nextBlink -= steps;
     if(nextBlink<=0 && blinkPhase<0){ blinkPhase=0; doubleBlink = Math.random()<0.20 ? 1 : 0; }
     if(blinkPhase>=0){
-      blinkPhase += steps/24;                   // a full blink is 24 frames, ~400ms
+      blinkPhase += steps/24;                   // 一整次眨眼 24 帧 ≈ 400ms
       if(blinkPhase>=1){
         blinkPhase=-1; blinkAmt=0;
-        if(doubleBlink>0){ doubleBlink--; nextBlink = 8; }        // occasionally twice in a row
-        else nextBlink = 150+Math.floor(Math.random()*210);       // next one in 2.5~6s
+        if(doubleBlink>0){ doubleBlink--; nextBlink = 8; }        // 偶尔连眨第二下
+        else nextBlink = 150+Math.floor(Math.random()*210);       // 2.5~6s 后下一次
       } else blinkAmt = blinkCurve(blinkPhase);
     }
   } else {
     blinkAmt=0; blinkPhase=-1;
-    if(eyesShut) nextBlink = 150+Math.floor(Math.random()*210);   // re-roll after reopening
+    if(eyesShut) nextBlink = 150+Math.floor(Math.random()*210);   // 睁眼后重新计时
   }
-  if(blinkFix!==null) blinkAmt = blinkFix;      // debug: ?bl=0.5 freezes the eyelid at that portion
+  if(blinkFix!==null) blinkAmt = blinkFix;      // 调试：?bl=0.5 冻结眼皮开合度
 
-  let bright = state.breath ? 0.84+0.16*Math.sin(frame/48) : 1;
+  /* 亮度恒定。原来这里有个"呼吸"（0.84~1.00 慢正弦，1.6 秒一轮），
+     在 1.8 寸屏上看着像屏幕在闪，已经去掉。 */
+  const bright = 1;
+
+  /* 点头只改纵向位移，不改眼形 —— 眼睛上下点两下，读的是"脖子在动"。
+     跟摇头（headSwing 改横向 ex）是同一套思路的竖版。 */
+  const nodY = headNod();
 
   let jx=0, jy=0;
   if(sh.decor==='shake'){
@@ -811,51 +1179,56 @@ function render(ts){
     jy = (Math.random()-0.5)*0.9;
   }
 
-  // ---- per-expression idle motion ----
+  // ---- 新表情的自主动画 ----
   let winkL=0, winkR=0, sqL=blinkAmt, sqR=blinkAmt;
 
   if(sh.decor==='shy'){
-    // occasional quick squint: 8th power makes a short spike
+    // 偶尔轻轻缩一下：8 次方做出短促尖峰
     sqL = sqR = Math.min(0.95, blinkAmt + Math.pow(Math.max(0,Math.sin(frame/72)),8)*0.20);
   }
   if(sh.decor==='smug'){
-    // squint every 4.7s, down to 55%
+    // 每 4.7s 眯一次，压到 55%
     const m = Math.pow(Math.max(0,Math.sin(frame/45)),14)*0.42;
     sqL = Math.min(0.95, blinkAmt + m);
     sqR = Math.min(0.95, blinkAmt + m*1.15);
   }
   if(sh.decor==='confused'){
-    // the two eyes bob at different frequencies - that is where the confusion comes from
+    // 两只眼不同频率上下浮，互不同步 —— 困惑感的来源
     sh.ldy = Math.sin(frame/58)*0.85;
     sh.rdy = Math.sin(frame/79+1.7)*0.85;
   }
-  if(sh.decor==='wink'){
-    // One cycle covers left eye only, then right eye only, each running close-hold-open-rest,
-    // starting and ending with both eyes open. The close curve and the swap timer used to be
-    // incommensurate cycles (200 / 300), so they collided and hard-cut mid-close.
-    const wt = (frame % WINK.period)/WINK.period;
-    if(wt < 0.5) winkL = winkCurve(wt);
-    else         winkR = winkCurve(wt-0.5);
-  }
+  /* wink 不是"眨一下"，是一个**持续状态**：只要还停在 wink，左眼就一直闭着，
+     切到任何别的表情才睁开 —— 所以这里没有周期、没有左右轮换，只让 winkHold
+     平滑地追一个 0/1 目标。
+
+     判断用 moodName（目标表情）而不是 sh.decor（插值中的表情）：
+     decor 要过半才翻面，用它的话切走那半程左眼还死死闭着，翻面那一帧才弹开 —— 硬切。
+     用 moodName：点下去的那一刻就开始抬眼皮，整段过渡都在睁。
+     0.88^steps 指数逼近：60fps 下约 15 帧（0.25s）走完 85%，合上和抬起都不会跳格。
+     早先这里是"周期 360 帧、左眼右眼轮着眨"，看着像在打拍子，不是 wink。 */
+  winkGoal = (moodName==='wink') ? 1 : 0;
+  if(frozen && fixFrame!==null) winkHold = winkGoal;        // 截图模式：直接到位，别等过渡
+  else winkHold += (winkGoal - winkHold) * (1 - Math.pow(0.88, steps));
+  if(winkHold > 0.004) winkL = winkHold;
 
   const L = blinkShape(sh.L, Math.min(1, sqL+winkL));
   const R = blinkShape(sh.R, Math.min(1, sqR+winkR));
 
-  // ---- hearts: drawn first, bottom layer, covered by the eye ----
-  // Test against moodName (target expression), not sh.decor (the interpolating one): decor
-  // flips only past the halfway point, so the first half kept hearts at full brightness and
-  // the fade started halfway through - switching to rainbow, where the whole eye changes
-  // colour, that breakpoint read as "gone in a flash". Keying on the target starts the fade
+  // ---- 爱心粒子：先画，压在最底层，会被眼睛盖住 ----
+  // 判定用 moodName（目标表情）而不是 sh.decor（插值中的表情）：
+  // decor 是"过半才翻面"的，用它会导致「前半程爱心还满亮度地飘，后半程才开始淡」——
+  // 切彩虹时眼睛整块变色，这个半程断点看起来就是"啪一下没了"。
+  // 改成按目标表情判，点下去的那一刻就开始淡，整段过渡都在渐隐。
   const wantHearts = moodName==='love' && state.heart;
   if(wantHearts){
     heartOn = true;
-    heartFade = Math.min(1, heartFade + steps*0.060);     // fade in ~0.28s
-    for(const p of parts){ p.exitA = undefined; p.exitAge = undefined; }  // back to normal lifetime
+    heartFade = Math.min(1, heartFade + steps*0.060);     // 淡入 ≈ 0.28s
+    for(const p of parts){ p.exitA = undefined; p.exitAge = undefined; }  // 回来时恢复正常生命周期
     if(!frozen) updateHearts(true);
   } else if(heartOn && parts.length){
-    heartFade = Math.max(0, heartFade - steps*0.055);    // fade out ~0.30s - short is right
+    heartFade = Math.max(0, heartFade - steps*0.055);    // 淡出 ≈ 0.30s：一小段就够，别拖到下一个表情
     for(const p of parts){
-      if(p.exitA===undefined){                            // first exit frame: pin current brightness
+      if(p.exitA===undefined){                            // 离场第一帧：把当前亮度钉住
         const own = heartAlpha(p);
         if(own > 0.01){ p.exitA = Math.max(own, 0.45); p.exitAge = frame - p.birth; }
       }
@@ -863,20 +1236,105 @@ function render(ts){
   }
   if(heartOn && parts.length){
     drawHearts(ctx, heartFade);
-    if(heartFade<=0){ parts.length = 0; heartOn = false; }  // reclaim only once fully faded
+    if(heartFade<=0){ parts.length = 0; heartOn = false; }  // 淡干净了才真正回收
   }
 
   const rb = sh.decor==='rainbow' && moodT>0.35;
-  drawEye(ctx, L, EYE_CX.L+sh.lx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.ldy||0), bright, rb);
-  drawEye(ctx, R, EYE_CX.R+sh.rx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.rdy||0), bright, rb);
 
-  // ---- tears ----
+  /* ---- 被吓一跳：果冻拉扯 ----
+     形状数组 top/bot 是相对 EYE_CY 的偏移，整体乘一个系数就是"绕中心垂直拉伸"。
+     曲线用衰减余弦：t=0 最猛 +45%，约 200ms 被压回 85%，400ms 收敛 ——
+     先拉长、再压扁、再回正，这才是果冻；只拉长不压扁是 PPT 拉伸。
+     同时往上顶一下，像被吓得整个人弹起来。 */
+  let jbY = 0, jbKW = 1;
+  if(startleT !== null){
+    /* 被吓一跳 = 一条时间轴上的四件事，全部手绘帧数，不跟 moodT 走：
+         p   0~10  猛拉长（easeOutBack，冲到 1 再收住）
+         p  10~40  保持超长 —— 这 0.5 秒是"瞪着你"的时间
+         p  40~50  快速收回（同时 setMood('normal') 让形状 26→15 格一起缩）
+         p  50~57  继续压到 -0.45：**比默认还扁**，这是"橡皮筋弹回来"的关键
+         p  57~66  弹回 0
+       sy=1.22 → 26×1.22 = 31.7 格 ≈ 444px（屏幕 448，刚好填满不截断；
+                  再高就会顶出框，眼睛两端被屏幕切平，反而像断掉的荧光管）
+       kw=0.80 → 同时横向收窄 20%，纵向拉长必须横向收缩，否则只是"纵向放大"，不像被拽。
+       回弹段 inf 变负，sy<1、kw>1，眼睛短暂变矮变胖，再弹回原样。 */
+    const p = frame - startleT;
+    let inf;
+    if(p < 10){
+      const k=p/10, c1=1.3, c3=c1+1;
+      inf = 1 + c3*Math.pow(k-1,3) + c1*Math.pow(k-1,2);
+    } else if(p < 40){
+      inf = 1;
+    } else if(p < 50){
+      const k=(p-40)/10; inf = 1 - k*k*(3-2*k);
+    } else if(p < 57){
+      const k=(p-50)/7;  inf = -0.45 * k*k*(3-2*k);
+    } else if(p < 66){
+      const k=(p-57)/9;  inf = -0.45 * (1-k)*(1-k);
+    } else {
+      inf = 0;
+    }
+    const sy = 1 + 0.22*inf;
+    jbKW = 1 - 0.20*inf;
+    jbY  = -1.1*inf;
+    for(let i=0;i<COLS;i++){
+      L.top[i]*=sy; L.bot[i]*=sy;
+      R.top[i]*=sy; R.bot[i]*=sy;
+    }
+  } else {
+    jbEnter = null;
+  }
+
+  drawEye(ctx, L, EYE_CX.L+sh.lx, ex+sh.dx+jx, ddy+sh.dy+jy+jbY+nodY+(sh.ldy||0), bright, rb, jbKW);
+  drawEye(ctx, R, EYE_CX.R+sh.rx, ex+sh.dx+jx, ddy+sh.dy+jy+jbY+nodY+(sh.rdy||0), bright, rb, jbKW);
+
+  /* 死鱼眼：形状是空壳，drawEye 一个像素都没画，这里把两只 X 补上。
+     位移跟正常眼睛完全同一套（ex / ddy / 抖动的 jx jy / 表情自带的 sh.dx sh.dy），
+     所以它照样能被时钟方向指挥、被云台带着瞟 —— 不会变成一个"钉死在中间"的特例。 */
+  if(sh.decor==='dead'){
+    drawDeadX(ctx, EYE_CX.L+sh.lx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.ldy||0));
+    drawDeadX(ctx, EYE_CX.R+sh.rx, ex+sh.dx+jx, ddy+sh.dy+jy+(sh.rdy||0));
+  }
+
+  /* ---- 被吓一跳 · 右上角感叹号 ----
+     和问号共用"锚点缩放"，但弹簧更硬更快（ζ=0.42），弹出时冲 133% 再回弹，
+     外加头 0.37 秒的一圈爆炸射线 —— 参考的是漫画爆点图标：
+     竖条上宽下窄 + 下面一个圆点 + 外圈长短交替的刺。 */
+  if(sh.decor==='jblob' && state.exclam){
+    /* 感叹号用自己的入场时刻：decor 在过渡到一半处才上线，符号比眼睛晚半拍冒出来，
+       这个"晚"是对的（先被吓，才看见"!"）。果冻已经不吃这个时刻了。 */
+    if(exEnter===null) exEnter = (frozen && fixFrame!==null) ? 0 : frame;
+    const t = Math.max(0, frame - exEnter);
+    /* 感叹号的生命周期：弹簧走完（约 22 帧）后再停 6 帧，然后用 12 帧退场，
+       总共约 0.6 秒。以前这里写的是 moodName==='startle' ? 1 —— 恒等于 1，
+       符号会一直挂在右上角，看着像画面卡住了。眼睛该一直保持受惊形状，
+       但"!"是那一下的爆点，不是状态，必须自己退场。 */
+    const out = moodName==='startle'
+      ? Math.min(1, Math.max(0, (34 - t) / 12))
+      : Math.max(0, 1-moodT*2.2);
+    if(out>0.01){
+      const WN=26/60, ZT=0.42;
+      const WD=WN*Math.sqrt(1-ZT*ZT), DZ=ZT*WN;
+      const k = 1 - Math.exp(-DZ*t)*(Math.cos(WD*t)+(DZ/WD)*Math.sin(WD*t));
+      const jj = (k-1)*0.30;                       // 纵向拉长、横向收窄，才像"惊"
+      const kx = Math.max(0,k*(1-jj)), ky = Math.max(0,k*(1+jj));
+      // 落稳后一次快速左右抖，像被人拍了一下还在晃
+      const wob = t>12 ? 0.55*Math.exp(-(t-12)/9)*Math.sin((t-12)*0.95) : 0;
+      const bx = EX.ax, by = 5.2;
+      drawBurst(ctx, bx+wob, by, Math.max(0, 1-t/22), out);
+      drawExcl(ctx, kx, ky, wob + ex*0.18 + sh.dx*0.5, ddy*0.20 + sh.dy*0.4, out);
+    }
+  }
+
+  // ---- 泪滴 ----
   if(sh.decor==='tear'){
     const cyc = (frame%96)/96;
     for(let k=0;k<2;k++){
       const ph = (cyc + k*0.5)%1;
       if(ph>0.8) continue;
-      const y0 = EYE_CY + sh.dy + 6;
+      // 泪滴挂在眼睛下缘，垂直必须跟着 ddy 走 ——
+      // 以前只跟水平，眼睛往下一看，泪滴就跑到眼睛中间去了（这是 v12 就有的错位）
+      const y0 = EYE_CY + sh.dy + ddy + 6;
       const y = y0 + ph*7;
       const a = 0.92 - 0.55*(ph/0.8);
       ctx.fillStyle = rgba_(THEME.tearHi, a);
@@ -886,11 +1344,24 @@ function render(ts){
     }
   }
 
-  // ---- shy blush ----
+  // ---- 害羞腮红 ----
+  /* v13 是一条 3×1 的细线，1.8 寸屏上只有 3×4 像素，像被划了一道。
+     v14 改成实心厚块：3 格宽 × 2 格高，下面再垫一行 4 格宽的淡色柔边 ——
+     像素风里这就是"晕开的腮红"，比加斜线更贴合现有的方块眼。 */
   if(sh.decor==='shy'){
-    ctx.fillStyle = rgba_(THEME.blush, 0.85);
+    /* 这一处试了十二种形态，全部走不通，把结论钉在这里，别再重试：
+       细线(像划痕) → 3×2 居中(像底座) → 外移(像小脚) → 大椭圆(像台阶)
+       → 降透明度(像灰块) → 棋盘抖动(像碎点) → 透明渐变(还是台阶)
+       → 贴眼外下角(像耳坠)。
+       根本原因：这些眼睛是两根竖直的绿条，脸上没有"脸颊"这个概念，
+       任何独立的粉色块都会被读成一个新物体。要真正解决得改眼睛形状（用户不允许），
+       或者在屏上加一层淡淡的整体色调（那是另一个功能）。
+       所以按用户原话做：位置用 v13 的，只把 3×1 加厚成 3×2。真机上 12×8 像素，
+       观感会和这个放大的预览不一样，最终以真机为准。 */
+    const by = EYE_CY + 7.2 + sh.dy + ddy;
+    ctx.fillStyle = rgba_(THEME.blush, 0.82);
     for(const cx of [EYE_CX.L-3.8, EYE_CX.R+0.8]){
-      ctx.fillRect(Math.round((cx+ex)*P), Math.round((EYE_CY+7.6+sh.dy)*P), P*3, P);
+      ctx.fillRect(Math.round((cx+ex)*P), Math.round(by*P), Math.round(P*3), Math.round(P*2));
     }
   }
 
@@ -899,24 +1370,24 @@ function render(ts){
     drawZzz(ctx, ddx, ddy, sh);
   }
 
-  // ---- sweat drop ----
+  // ---- 汗滴 ----
   if(sh.decor==='sweat' && state.sweat){
     const cyc = (frame%150)/150;
     const bx = EYE_CX.R+5+ddx;
-    const by = EYE_CY-8+cyc*5;
+    const by = EYE_CY-8+cyc*5+ddy;   // 汗滴贴着眼上缘往下滑，垂直也要跟（原来只跟水平）
     const a  = cyc<0.75 ? 0.95 : 0.95*(1-(cyc-0.75)/0.25);
     ctx.fillStyle = rgba_(THEME.tear, Math.max(0,a));
     ctx.fillRect(Math.round(bx*P), Math.round(by*P), P, P);
     ctx.fillRect(Math.round((bx-1)*P), Math.round((by+1)*P), P*3, P*2);
   }
 
-  // ---- confused - question mark: spring pop, hold, retract; cycle length varies ----
+  // ---- 困惑 · 问号：弹簧弹出 → 停顿 → 缩回，每轮长短不一 ----
   if(sh.decor==='confused' && state.qmark){
     if(qEnter===null) qEnter = (frozen && fixFrame!==null) ? 0 : frame;
     const qp = qPhase(frame - qEnter);
     const st = qSpring(qp.t, qp.period);
-    // no extra fade-in: k growing from 0 is already a fade, another one would hide the pop
-    const out= moodName==='confused' ? 1 : Math.max(0, 1-moodT*2.2); // fade out when switching away
+    // 进来时不做额外淡入：k 从 0 长起来本身就是渐显，再叠一层会把弹出过程盖掉
+    const out= moodName==='confused' ? 1 : Math.max(0, 1-moodT*2.2); // 切走时淡出
     if(st.a>0.01 && out>0){
       const qx = ddx*0.46 + st.wob;
       const qy = ddy*0.32 + st.y;
@@ -924,12 +1395,52 @@ function render(ts){
     }
   }
 
-  // ---- think - three dots ----
+  // ---- 思考 · 三点等待 ----
   if(sh.decor==='swap' && state.dots){
     const fin = Math.min(1, Math.max(0,(moodT-0.45)/0.35));
     const out = moodName==='think' ? 1 : Math.max(0, 1-moodT*2.2);
     if(fin>0 && out>0){
-      drawDots(ctx, ddx*0.42, ddy*0.28 + Math.sin(frame/53)*0.16, fin*out);
+      // 三点跟 0.60 / 0.50（原 0.42 / 0.28）：think 位移放到 4 格后，
+      // 垂直跟得太少，眼睛一往上就顶进三点下缘（实测"1 点"方向会擦到约 2px）
+      drawDots(ctx, ddx*0.60, ddy*0.50 + Math.sin(frame/53)*0.16, fin*out);
+    }
+  }
+
+  /* 三级生气的火苗已经整块删除（用户：火苗不要了）。
+     原来这里是 90 颗粒子的粒子系统，现在连池子一起拆掉了，不留死代码。 */
+
+  /* ---- 故障（glitch）：整屏按横条撕开 ----
+     不是"晕"那种规则抖动 —— 晕是整体小幅晃，故障是画面本身被切断重接：
+       ① 每条 1~3 格高的横条，各自水平错位，最多 ±2.4 格
+       ② 随机跳过 12% 的条 → 缺行（黑缝）
+       ③ 再撒 3 道白线 → 信号溢出
+     节奏：90 帧（1.5s）一轮里炸三段（0~10% / 38~46% / 74~80%）。
+     一次炸太久会像在抖，短促几下才像"接触不良"。
+     每 2 帧才换一次切片（seed = frame/2）—— 60fps 下每帧都换的话，
+     错位全糊成噪点，"横条"这个结构就读不出来了。 */
+  if(moodName==='glitch'){
+    const ph = (frame % 90)/90;
+    const burst = ph < 0.10 || (ph > 0.38 && ph < 0.46) || (ph > 0.74 && ph < 0.80);
+    if(burst){
+      const seed = Math.floor(frame/2);
+      glCtx.clearRect(0,0,W,H);
+      glCtx.drawImage(c,0,0);
+      ctx.fillStyle = '#000a04';
+      ctx.fillRect(0,0,W,H);
+      let y = 0, k = 0;
+      while(y < H){
+        const rh = Math.max(P, Math.round(P*(1 + 1.6*rnd(seed*7.3 + k))));
+        const d  = rnd(seed*3.1 + k*1.7)*2 - 1;
+        const dx = Math.round(d*d*d*P*1.8);        // 立方后仍保号：小位移多、大位移少；上限 1.8 格，
+                                                   // 再大就成"画面被切成几块"，不像信号错位
+        if(rnd(seed*5.7 + k) > 0.12) ctx.drawImage(glCanvas, 0,y,W,rh, dx,y,W,rh);
+        y += rh; k++;
+      }
+      for(let i=0;i<3;i++){
+        const ly = Math.round(rnd(seed*11 + i*3.7)*H);
+        ctx.fillStyle = 'rgba(230,255,240,0.55)';
+        ctx.fillRect(0, ly, W, Math.max(1, Math.round(rnd(seed*13 + i)*3)));
+      }
     }
   }
 
@@ -938,7 +1449,7 @@ function render(ts){
 
   frame += steps;
 
-  // real fps: counts actual redraws, skipped refreshes do not count
+  // 真实帧率显示：数的是"真的重绘了几次"，高刷屏跳过的那一次不算
   _fpsN++;
   if(!_fpsT) _fpsT = ts;
   if(ts - _fpsT >= 500){
@@ -959,15 +1470,15 @@ function render(ts){
   requestAnimationFrame(render);
 }
 
-/* blink curve: 7 frames closing, 3 frames held, 14 frames opening */
+/* 眨眼曲线：闭合 7 帧 → 微停 3 帧 → 张开 14 帧 */
 function blinkCurve(p){
   if(p < 0.30) return ease(p/0.30);
   if(p < 0.42) return 1;
   return 1 - ease((p-0.42)/0.58);
 }
 
-/* Eyelid-style closure: the top edge sweeps all the way down while the bottom edge only
-   lifts in the final stretch, meeting as one line on the centreline - no cell jump. */
+/* 眼皮式闭合：上缘全程往下盖，下缘后段才抬起，最终汇合成一条横线。
+   闭合点固定在眼形中线上，所以收尾时不会跳一格。 */
 function blinkShape(shape,amt){
   if(amt<=0.002) return shape;
   let c=0,n=0;
@@ -977,40 +1488,26 @@ function blinkShape(shape,amt){
   if(!n) return shape;
   const cy=c/n;
   const aT = Math.min(1,amt*1.06);
-  const aB = Math.min(1,Math.pow(amt,2.6));      // bottom lid only moves in the final stretch
+  const aB = Math.min(1,Math.pow(amt,2.6));      // 下眼皮后段才动
   const top=[], bot=[];
   for(let i=0;i<COLS;i++){
+    /* 无效列（top>bot，本来一个像素都不画）必须原样搬过去。
+       以前这里无差别压缩：amt 到 1 时 99→cy、-99→cy，top 和 bot 撞成同一个数，
+       drawEye 判定 yB=yT+P 照样画一格 —— 闭眼那条横线就从 6 格被撑到 12 格宽。
+       自动眨眼只闪 0.4 秒看不出来，wink 是"一直闭着"，这条胖横线立刻藏不住了。 */
+    if(shape.top[i] > shape.bot[i]){ top.push(shape.top[i]); bot.push(shape.bot[i]); continue; }
     top.push(shape.top[i]+(cy-shape.top[i])*aT);
     bot.push(shape.bot[i]+(cy-shape.bot[i])*aB);
   }
   return {top,bot};
 }
 
-/* wink tempo presets.
-   period = frames for one full round trip (left + right eye) at 60fps;
-   close / hold / open = share of each eye own window, rest is normal open eyes.
-   soft: 6s round - one eye closes 0.15s, holds 0.30s, opens 0.18s, then 2.4s of nothing.
-   lazy: 10s round - slower, holds longer.
-   Was 180 frames (3s) with each eye held 0.8s: read as constant squinting. */
-const WINK_PRESETS = {
-  soft: { period: 360, close: 0.050, hold: 0.100, open: 0.060 },
-  lazy: { period: 600, close: 0.040, hold: 0.090, open: 0.050 }
-};
-let WINK = WINK_PRESETS.soft;
+/* wink 现在不靠曲线，是一个持续状态（见 render 里的 winkHold）。
+   原来那套 WINK_PRESETS + winkCurve（周期 360/600 帧、左右眼轮着眨）已经删掉，
+   连同面板上的"温和 / 慵懒"节奏开关一起 —— 那套是给"眨一下"用的，
+   用户要的是"闭着不放"，留着只会误导。 */
 
-// wink curve for a single eye, u in [0,0.5): close, hold, open, long rest
-function winkCurve(u){
-  const t = u*2;                                // normalise to this eye own 0~1
-  const A = WINK.close;
-  const B = A + WINK.hold;
-  const C = B + WINK.open;
-  if(t < A) return ease(t/A);                   // closing
-  if(t < B) return 1;                           // held shut
-  if(t < C) return 1 - ease((t-B)/WINK.open);   // opening
-  return 0;                                     // rest of the window: normal open eye
-}
-
-/* ============ Interaction ============ */
+/* ============ 交互 ============ */
 document.querySelectorAll('button[data-m]').forEach(b=>{
   b.onclick=()=>{
     document.querySelectorAll('button[data-m]').forEach(x=>x.classList.remove('on'));
@@ -1032,29 +1529,85 @@ function bindSwitch(id,key){
   const el=document.getElementById(id);
   el.onclick=()=>{ state[key]=!state[key]; el.classList.toggle('on',state[key]); };
 }
-bindSwitch('swBlink','blinkOn'); bindSwitch('swBreath','breath');
+bindSwitch('swBlink','blinkOn');
 bindSwitch('swAfter','after');
 bindSwitch('swHeart','heart'); bindSwitch('swZzz','zzz');
 bindSwitch('swSweat','sweat'); bindSwitch('swSwap','swapThink');
 bindSwitch('swQ','qmark'); bindSwitch('swDots','dots');
+bindSwitch('swEx','exclam');
 
 const durEl=document.getElementById('dur'), durV=document.getElementById('durV');
 durEl.oninput=e=>{ dur=+e.target.value; durV.textContent=dur+'ms'; };
+
+/* 云台跟随：滑块模拟 PAN 角，开关模拟固件里那个"每 9 秒 ±12°"的待机扫视。
+   盯两个事：① 眼睛跟着瞟的量对不对（约 1.5 格）；② 和十二向叠加会不会顶到边。 */
+const panEl=document.getElementById('pan'), panV=document.getElementById('panV');
+const panEye=document.getElementById('panEye'), panNow=document.getElementById('panNow');
+function applyPan(deg, fromIdle){
+  neckPan = deg;
+  if(!fromIdle) panEl.value = deg;
+  panV.textContent = deg+'°';
+  panNow.textContent = deg===0 ? '正中' : (deg>0 ? '右 '+deg+'°' : '左 '+Math.abs(deg)+'°');
+  const off = neckEyeOffset(lastBaseEx);
+  panEye.textContent = (off>=0?'+':'') + off.toFixed(2) + ' 格';
+}
+panEl.oninput = e => applyPan(+e.target.value, false);
+
+let idleTimer=null, idleRight=false;
+document.getElementById('swIdle').onclick = e => {
+  state.idlePan = !state.idlePan;
+  e.currentTarget.classList.toggle('on', state.idlePan);
+  if(state.idlePan){
+    idleRight=false; applyPan(-12, true);
+    idleTimer = setInterval(()=>{ idleRight=!idleRight; applyPan(idleRight?12:-12, true); }, 9000);
+  } else {
+    clearInterval(idleTimer); idleTimer=null; applyPan(0, true);
+  }
+};
 document.getElementById('hue').oninput=e=>{ state.hue=+e.target.value; applyHue(state.hue); clearColCache(); document.getElementById('hueV').textContent=state.hue; };
 document.getElementById('lum').oninput=e=>{ state.lum=+e.target.value; clearColCache(); document.getElementById('lumV').textContent=state.lum; };
 
-// wink tempo: soft / lazy (takes effect immediately, next round uses it)
-document.querySelectorAll('#winkSeg button').forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll('#winkSeg button').forEach(x=>x.classList.remove('on'));
-    b.classList.add('on');
-    WINK = WINK_PRESETS[b.dataset.w] || WINK_PRESETS.soft;
-  };
-});
+/* ============ 调色板 ============
+   所有散落的颜色都收在 THEME 里，这里只做三件事：hex ⇄ rgb、绑定、刷新读数。
+   渲染代码一律读 THEME，所以改完立刻生效，不用重绘画布、不用重新加载。 */
+const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+const rgb2hex = c => '#' + c.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
 
-// idle tier: no condition needed, rotates on its own - what it does when nothing happens
+function bindColor(id, get, set){
+  const el = document.getElementById(id), lb = document.getElementById(id+'V');
+  if(!el) return;
+  const hex = rgb2hex(get());
+  el.value = hex; if(lb) lb.textContent = hex;
+  el.oninput = e => {
+    set(hex2rgb(e.target.value));
+    if(lb) lb.textContent = e.target.value;
+    if(id==='colBase') EYE_BASE = e.target.value;
+    clearColCache();
+  };
+}
+bindColor('colBlush',  ()=>THEME.blush,       v=>THEME.blush=v);
+bindColor('colTear',   ()=>THEME.tear,        v=>THEME.tear=v);
+bindColor('colDead',   ()=>THEME.dead,        v=>THEME.dead=v);
+bindColor('colEx',     ()=>THEME.exclaim,     v=>THEME.exclaim=v);
+bindColor('colBurst',  ()=>THEME.burst,       v=>THEME.burst=v);
+bindColor('colBase',   ()=>hex2rgb(EYE_BASE), v=>{});      // 单独处理：EYE_BASE 是字符串
+
+// 爱心是 6 色随机取，做成 6 个小色块并排放，改哪颗就是哪颗
+const heartBox = document.getElementById('heartSw');
+if(heartBox){
+  THEME.heart.forEach((hx,i)=>{
+    const inp = document.createElement('input');
+    inp.type = 'color'; inp.value = rgb2hex(hex2rgb(hx));
+    inp.oninput = e => { THEME.heart[i] = e.target.value; };
+    heartBox.appendChild(inp);
+  });
+}
+
+// wink 已改成持续闭左眼，没有"节奏"可调，对应的开关也一起删了
+
+// 一级：不需要条件，待机时自己轮换 —— 机器人"没事干"的时候就用这几个
 const TIER1 = ['normal','happy','smug','despise','blink','wink','peek'];
-// triggered tier: only on a real event (sound, touch, command, timeout), never random
+// 二级：必须等具体事件（声音、触摸、指令、时长…）才切，绝不随机播放
 const TIER2 = ['surprise','angry','cry','dizzy','love','speechless','think','sleep','shy','confused','rainbow'];
 const MOOD_LIST = TIER1.concat(TIER2);
 
@@ -1074,7 +1627,7 @@ let matTimer=null;
 document.getElementById('btnMatrix').onclick=function(){
   if(matTimer){ clearInterval(matTimer); matTimer=null; this.classList.remove('on'); return; }
   this.classList.add('on');
-  const ds=['center','up','upRight','right','downRight','down','downLeft','left','upLeft'];
+  const ds=['center'].concat(DIR_ORDER);   // 顺时针走一圈：center → 12 点 → 1 点 → … → 11 点
   let i=0;
   matTimer=setInterval(()=>{
     setDir(ds[i%ds.length], 420);
@@ -1083,11 +1636,11 @@ document.getElementById('btnMatrix').onclick=function(){
   }, 700);
 };
 
-// URL params: ?m=love&still=1&f=70&sw=0.5
+// URL 参数：?m=love&still=1&f=70&sw=0.5
 {
   const q=new URLSearchParams(location.search);
   if(q.get('raw')) document.body.classList.add('raw');
-  if(q.get('still')){ state.blinkOn=false; state.breath=false; state.after=false; frozen=(q.get('f')!==null); }
+  if(q.get('still')){ state.blinkOn=false; state.after=false; frozen=(q.get('f')!==null); }
   if(q.get('from') && q.get('t')){
     curMood = cloneMOOD(MOODS[q.get('from')] || MOODS.normal);
     tgtMood = cloneMOOD(MOODS[q.get('m')] || MOODS.normal);
@@ -1099,14 +1652,9 @@ document.getElementById('btnMatrix').onclick=function(){
   if(q.get('sw')!==null) swFix=parseFloat(q.get('sw'));
   if(q.get('bl')!==null) blinkFix=parseFloat(q.get('bl'));
   if(q.get('f')!==null) fixFrame=parseInt(q.get('f'),10);
-  // ?wink=lazy opens straight into the lazy tempo, handy for screenshots and comparison
-  if(q.get('wink') && WINK_PRESETS[q.get('wink')]){
-    WINK = WINK_PRESETS[q.get('wink')];
-    document.querySelectorAll('#winkSeg button').forEach(x=>x.classList.toggle('on', x.dataset.w===q.get('wink')));
-  }
 }
 
-// ?cycle=210 - cycle an expression every 210ms, stress-testing transition leftovers (frame-counted)
+// ?cycle=210 —— 每 210ms 自动切一个表情，用于压力测试切换残留（按帧计数，后台也准）
 let autoCyc=0, autoIdx=0, _autoAcc=0;
 {
   const q=new URLSearchParams(location.search);

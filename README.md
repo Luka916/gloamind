@@ -3,11 +3,11 @@
 <h1>Gloamind</h1>
 
 <p><strong>Pixel eyes for small screens.</strong><br>
-18 expressions, computed frame by frame — no sprite sheet, no pre-rendered GIF.</p>
+25 expressions, computed frame by frame — no sprite sheet, no pre-rendered GIF.</p>
 
 <img src="docs/images/demo.gif" width="420" alt="Expressions cycling">
 
-<p><sub>One HTML file in a browser, or an ESP32-S3 driving a 1.8" ST7735S.</sub></p>
+<p><sub>One HTML file in a browser, or an ESP32-S3 driving a 1.8" ST7735S on a two-axis neck.</sub></p>
 
 <p><a href="https://luka916.github.io/gloamind/web/eyes.html"><strong>▶ Run it live →</strong></a></p>
 
@@ -23,8 +23,6 @@ What makes them read as alive is that nothing is played back. Every frame is com
 small amount of state: eyelid opening, pupil offset, breathing brightness, mood blending.
 Because it is state and not a timeline, you can interrupt it at any point — pat it mid-blink
 and it eases into a happy squint instead of finishing the blink and then cutting.
-
-This repository is **the eyes only**. No body, no motors, no voice, no enclosure.
 
 ## Why it does not look like a robot
 
@@ -68,9 +66,12 @@ smoothly, so entering and leaving are both continuous.
 `dt = 1000/60` looks harmless until the page runs on a 120Hz display, where everything is
 twice as fast. Reading the real interval between frames makes the speed identical everywhere.
 
-## 18 expressions
+## 25 expressions
 
-<img src="docs/images/moods.png" width="760" alt="18 expressions">
+<img src="docs/images/moods.png" width="760" alt="Expression grid">
+
+*(The grid above shows 18 of them — the six added later are edge states and easter eggs:
+`startle`, `angry2`, `nono`, `nonoBlink`, `dead`, `nod`, `glitch`.)*
 
 Two tiers, and the distinction matters: an idle expression may rotate on its own, a triggered
 one only fires on a real event and never plays at random.
@@ -78,18 +79,49 @@ one only fires on a real event and never plays at random.
 | Idle | | Triggered | Fires on |
 |---|---|---|---|
 | `normal` | resting | `surprise` | sudden noise |
-| `happy` | gentle rise | `angry` | repeated pokes |
-| `smug` | one eye larger | `cry` | left alone too long |
-| `despise` | both slanted | `dizzy` | fast shaking |
-| `blink` | closed, one line | `love` | head pat |
-| `wink` | one eye shuts | `speechless` | a question it cannot answer |
-| `peek` | the pair slides sideways | `think` | received a command |
+| `happy` | gentle rise | `startle` | a louder one |
+| `smug` | one eye larger | `angry` / `angry2` | repeated pokes |
+| `despise` | both slanted | `nono` / `nonoBlink` | being told off |
+| `blink` | closed, one line | `cry` | left alone too long |
+| `wink` | one eye shuts | `dizzy` | fast shaking |
+| `peek` | the pair slides sideways | `love` | head pat |
+| | | `speechless` | a question it cannot answer |
+| | | `think` | received a command |
 | | | `sleep` | idle for 5 minutes |
 | | | `shy` | being stared at |
 | | | `confused` | did not understand |
+| | | `dead` | battery critical |
+| | | `nod` | agreement |
+| | | `glitch` | easter egg |
 | | | `rainbow` | easter egg |
 
-Plus eight gaze directions, so the eyes can look away from centre.
+Plus twelve gaze directions, so the eyes can look away from centre.
+
+## The neck: why it looks *at* things
+
+Everything above makes a face. This is what makes it a creature.
+
+The vertical axis used to be frozen at 62° — it never looked up, never looked down. Now it
+moves 43°–76° and spends about a quarter of its time above level, because a small robot on a
+desk is *below* your eye level and up is where the interesting thing is.
+
+Six parameters, each traced back to a measurement rather than a guess:
+
+| Rule | Number | Source |
+|---|---|---|
+| eye lands first, head follows | 100–160ms (biology: 20–40ms, padded for servo inertia) | Bizzi 1971 |
+| small targets move only the eye | head joins above ~7° | animal oculomotor range |
+| duration scales with amplitude | `70 + 11 × cells` ms | saccadic main sequence |
+| dwell time is skewed, not uniform | 0.7–2.4s, sum of three randoms | Henderson 1998, Dorr 2010 |
+| straight ahead is weighted 8, others 1–4 | plus last-3-spots de-weighted ×3 | central bias + habituation |
+| it breathes when idle | 1.2° sine, 4s period | — |
+
+Full derivation, the literature table, and the measured before/after are in
+[`docs/gaze-engine.md`](docs/gaze-engine.md).
+
+The touch sensor gets a four-beat cascade rather than one animation: eyes snap to centre →
+head lifts → happy squint → head returns 1.3s later. Run separately these are three unrelated
+motions; in sequence they read as "it noticed you".
 
 ## Quick start
 
@@ -112,20 +144,39 @@ The left panel switches expressions manually; the right panel toggles individual
 ## On hardware (optional)
 
 The `firmware/pet_eye` directory is a line-for-line port to C++ for an ESP32-S3 with an
-ST7735S panel. Same maths, same shapes, same timing — it exists to prove the eyes survive
-contact with a real screen, not as a separate product.
+ST7735S panel and two servos. Same maths, same shapes, same timing.
 
 | Part | Model | Note |
 |---|---|---|
-| MCU | ESP32-S3 **N16R8** | needs the 8MB PSRAM variant |
+| MCU | ESP32-S3 **N16R8** | needs the 8MB octal PSRAM variant |
 | Panel | 1.8" 128×160 ST7735S | 8-pin SPI |
+| Servos | 2 × SG90-class | pan and tilt, on their own 5V rail |
+| Touch | TTP223 | one pad, on top of the head |
 
-Wiring, `TFT_eSPI` setup and the exact `User_Setup.h` changes are in
+Wiring, calibration numbers, `TFT_eSPI` setup and the exact `User_Setup.h` changes are in
 [`docs/pinout.md`](docs/pinout.md). Parts list in [`docs/bom.md`](docs/bom.md).
 
-If you only want the eyes on a screen, that is one board and one panel. Nothing else.
+### Serial commands (115200, USB CDC)
 
-Serial commands at 115200: `m <name|index>`, `d <0-8>`, `b <0|1>`, `h <0-360>`, `l <0.4-1.3>`, `i`.
+| Command | Effect |
+|---|---|
+| `m <name\|index>` | switch expression |
+| `d <0-12>` | gaze direction, clock face (0 = centre, 1 = 12 o'clock, 4 = 3 o'clock …) |
+| `p <30-150>` | pan the neck |
+| `t <23-118>` | tilt (62 = level, lower is up) |
+| `p +1` / `t -1` | nudge one degree, **ignoring soft limits** — this is how you find the mechanical stops |
+| `b <0\|1>` | auto-blink |
+| `h <0-360>` `l <0.4-1.3>` | hue and brightness |
+| `a <0\|1>` | autopilot on/off |
+| `z` | release both servos (you can move the head by hand) |
+| `c` / `c p\|t lo home hi` / `c s` | show limits / change limits / save |
+| `f <0\|1>` | frame counter overlay |
+| `i` | status: mood, gaze vector, pan, tilt, fps, heap, BLE state |
+| `w` | RF check — scan for WiFi APs |
+| `K` | clear the boot counter and retry Bluetooth after a reboot |
+
+Over BLE it speaks the Nordic UART Service (`6e400001-…`), so any BLE serial terminal works —
+the Android app *Serial Bluetooth Terminal* is the one used here.
 
 ## Things that broke
 
@@ -140,15 +191,23 @@ Collected here so nobody has to rediscover them.
 | A phantom blink at boot | first frame `dt` covers setup time | reset `lastFrameMs` at the end of `setup()` |
 | Torn image on the panel | SPI at 40MHz | drop to 27MHz; raise it only after it is stable |
 | Colours inverted | blamed the address window | check `TFT_INVERSION_ON` and `TFT_BGR` instead |
+| Servo does not move, code looks right | `ledcAttach` with a 16-bit resolution | the S3 tops out at **14 bits**; anything wider fails silently |
+| Robot smiles at nothing | floating touch pin reads high | `INPUT_PULLDOWN` |
+| Head only ever moved sideways | vertical axis had no driver at all | see `docs/gaze-engine.md` |
+| Bluetooth dies, board reboots every 1.5s | 2.4GHz RF block failed; `init` returns OK, `enable` resets | [`docs/rf-module-failure.md`](docs/rf-module-failure.md) |
+| Filesystem becomes read-only after crash loops | LittleFS dirty flag, repair does not clear it | keep small persistent flags in **NVS**, not the filesystem |
 
 ## Layout
 
 ```
-web/eyes.html          the whole thing, single file
-firmware/pet_eye/      ESP32-S3 port (optional)
-docs/pinout.md         wiring and TFT_eSPI setup
-docs/bom.md            parts list
-docs/images/           demo, expression grid, motion curve
+web/eyes.html              the whole thing, single file
+firmware/pet_eye/          ESP32-S3 port
+shared/                    servo driver shared by the firmware
+docs/pinout.md             wiring, calibration, TFT_eSPI setup
+docs/gaze-engine.md        why the neck moves the way it does
+docs/rf-module-failure.md  post-mortem: a board that lost only its radio
+docs/bom.md                parts list
+docs/images/               demo, expression grid, motion curve
 ```
 
 ## License
