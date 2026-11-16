@@ -17,3 +17,6 @@ Thumbs.db
 # render scratch (tests/gen_sheets.py)
 tests/.cells/
 tests/.profile/
+
+# installer scratch (deploy.ps1)
+.tools/

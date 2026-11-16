@@ -149,6 +149,22 @@ The left panel switches expressions manually; the right panel toggles individual
 
 ## On hardware (optional)
 
+**If you have never used Arduino, start here: [`docs/build-guide.md`](docs/build-guide.md).**
+Four commands, no IDE:
+
+```
+deploy.bat doctor      check what is installed
+deploy.bat setup       install the compiler, core, library and panel config
+deploy.bat flash       compile and upload
+```
+
+`deploy.bat` is a two-line wrapper around `deploy.ps1`, which is readable and does nothing
+you cannot undo. It downloads `arduino-cli` into `.tools\` rather than installing an IDE, uses
+the `arduino.me` mirror because the official index is slow from mainland China, and rewrites
+`User_Setup.h` for you — that last step is where most hand builds fail.
+
+Symptoms, not causes: [`docs/faq.md`](docs/faq.md).
+
 The `firmware/pet_eye` directory is a line-for-line port to C++ for an ESP32-S3 with an
 ST7735S panel and two servos. Same maths, same shapes, same timing.
 
@@ -215,10 +231,14 @@ Collected here so nobody has to rediscover them.
 ## Layout
 
 ```
+deploy.bat                 double-click installer (wraps deploy.ps1)
+deploy.ps1                 doctor / setup / flash, no IDE required
 web/eyes.html              the whole thing, single file
 firmware/pet_eye/          ESP32-S3 port
 shared/                    servo driver shared by the firmware
 tests/                     renders the mood and gaze sheets from the HTML
+docs/build-guide.md        install and flash, for someone who has never compiled anything
+docs/faq.md                organised by symptom
 docs/pinout.md             wiring, calibration, TFT_eSPI setup
 docs/gaze-engine.md        why the neck moves the way it does
 docs/servo-tuning.md       why the neck moves in 1° steps
