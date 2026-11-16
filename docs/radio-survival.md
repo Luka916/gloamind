@@ -100,7 +100,6 @@ Five minutes with a multimeter. The alternative is a board with no radio.
 
 The radio does not recover, and it does not degrade gracefully — it crosses a threshold and
 stops. Diagnose it in four steps, in this order, before spending anything:
-
 ```
 1. Call esp_bt_controller_init() and esp_bt_controller_enable() separately.
    init OK  →  memory is not the problem, stop looking there.
@@ -113,3 +112,8 @@ stops. Diagnose it in four steps, in this order, before spending anything:
 Step 2 is the one that settles it, and it takes one line of code. Bluetooth and WiFi are
 separate stacks on shared silicon — two stacks failing on the same board is not a software
 bug.
+
+Before the four steps, spend one minute on the free check: is your Arduino core old enough to be
+affected by Espressif advisory AR2023-009? That is a real software failure of both radios, fixed
+in ESP-IDF v4.4.7 / v5.0.6 / v5.1.3. Details, and what other makers found when they hit the
+hardware version of this, are in [`rf-field-reports.md`](rf-field-reports.md).

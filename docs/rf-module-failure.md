@@ -171,3 +171,11 @@ cost the whole robot if the guard had not been there.
 
 Cost of the fix: about $10 for a serial-Bluetooth module on two free GPIOs, or about $40 for a
 new board and re-soldering eight panel wires.
+
+Before you spend that, do the one test that was skipped here: a **470µF + 0.1µF across 3V3 and
+GND at the module**, plus a short thick cable. An Espressif engineer's rule of thumb is that
+restarts during full RF calibration are usually a supply problem, and calibration is exactly the
+step that fails here.
+
+Whether this failure pattern is unusual, and what other makers found when they hit it, is
+collected in [`rf-field-reports.md`](rf-field-reports.md).

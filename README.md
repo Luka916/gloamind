@@ -224,6 +224,7 @@ docs/gaze-engine.md        why the neck moves the way it does
 docs/servo-tuning.md       why the neck moves in 1° steps
 docs/radio-survival.md     how not to kill the 2.4GHz block (read before soldering)
 docs/rf-module-failure.md  post-mortem: a board that lost only its radio
+docs/rf-field-reports.md   other makers who hit the same thing, and what it turned out to be
 docs/bom.md                parts list
 docs/images/               demo, 25 expressions, 13 gaze directions, motion curve, servo traces
 ```
