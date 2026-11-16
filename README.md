@@ -164,6 +164,11 @@ Wiring, calibration numbers, `TFT_eSPI` setup and the exact `User_Setup.h` chang
 driven — and why 1° per 20ms is the right step — is in
 [`docs/servo-tuning.md`](docs/servo-tuning.md).
 
+**Read [`docs/radio-survival.md`](docs/radio-survival.md) before you solder anything.** The
+2.4GHz block is the one part of this board that dies permanently from a wiring mistake, and it
+is also the part you cannot replace. It takes a capacitor, ten millimetres of spacing between
+two joints, and five minutes with a multimeter — total cost under a dollar.
+
 <img src="docs/images/servo-smoothness.png" width="820" alt="Four ways of commanding the same 60° turn">
 
 ### Serial commands (115200, USB CDC)
@@ -217,6 +222,7 @@ tests/                     renders the mood and gaze sheets from the HTML
 docs/pinout.md             wiring, calibration, TFT_eSPI setup
 docs/gaze-engine.md        why the neck moves the way it does
 docs/servo-tuning.md       why the neck moves in 1° steps
+docs/radio-survival.md     how not to kill the 2.4GHz block (read before soldering)
 docs/rf-module-failure.md  post-mortem: a board that lost only its radio
 docs/bom.md                parts list
 docs/images/               demo, 25 expressions, 13 gaze directions, motion curve, servo traces

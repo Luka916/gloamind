@@ -35,6 +35,11 @@ stops.
 **Servo power must come from its own 5V rail, never from 3V3.** A stalled micro servo pulls
 ~700mA; the board's 3V3 regulator supplies ~200mA. The grounds must be tied together.
 
+**Put a 100µF electrolytic across the servo supply, at the servo end.** It costs ten cents and
+it is the difference between a board that keeps its radio and one that does not — see
+[`radio-survival.md`](radio-survival.md) for why, and for the checklist to run before the
+first power-up.
+
 **Give the touch pin an internal pull-down.** With nothing wired, GPIO13 floats and reads high
 at random — the robot appears to pat itself and starts smiling on its own. `INPUT_PULLDOWN`
 removes the ghost for free.
