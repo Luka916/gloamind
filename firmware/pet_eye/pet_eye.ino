@@ -284,21 +284,25 @@ static bool     g_showFps  = true;   // 左上角帧率字样，f 0 可关（正
 static uint32_t g_nextMood = 0;
 static uint32_t g_nextDir  = 0;
 
-/* ---------- 表情分池：桌宠不是"抽奖机" ----------
-   常驻池：能停在屏幕上待几秒也不违和的。
-   事件池：一下就走、看完自己回 normal 的（nod / nono / startle 自带回位计时）。
-   永不入池：dead（死鱼眼）、glitch（故障）、blink / nonoBlink（眨眼）——
-     它们本来是"坏了"或"正在眨眼"的瞬时表现。随机切进去会停在那儿三五秒，
-     看着像机器卡死，不像活物。这是 23:0x 实测发现的：全池 random 平均
-     十来秒就抽中一次死鱼眼，非常出戏。 */
+/* ==================== 表情分三层 ====================
+   2026-11-16 15:05 重排。原来"能待住的"全塞进一个常驻池随机抽，于是彩虹眼、
+   害羞、哭、生气每十几秒就来一次 —— 常见了就没有信息量，而且会盖掉
+   "被摸才有反应"这条因果。成品应该安静，情绪要有由来。
+
+   第 I 类 常态（IDLE_POOL）——没人理的时候自己演的，只许无聊的。
+       眨眼是自动叠加的，不占池子。
+   第 II 类 状态——**只能被事件触发**：触摸 / 串口命令 / Agent 说话 / 长时间没人理。
+       永不随机出现。这是"跟它互动它才给表情"。
+   第 III 类 彩蛋——不进任何池子，靠隐藏手势触发，见 handleTouch 末尾。
+       故意不写进帮助、不写进文档：要自己玩出来才算彩蛋。 */
 static const uint8_t IDLE_POOL[] = {
-  M_NORMAL, M_NORMAL, M_NORMAL,                       // 高权重：大部分时间就是它
-  M_HAPPY, M_SMUG, M_PEEK, M_CONFUSED, M_THINK, M_SHY,
-  M_LOVE, M_SPEECHLESS, M_ANGRY, M_DESPISE, M_CRY,
-  M_WINK, M_SURPRISE, M_RAINBOW, M_DIZZY
+  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,   // 约 55%：大部分时间就是它
+  M_PEEK,   M_PEEK,                                   // 偷看
+  M_THINK,  M_THINK,                                  // 发呆
+  M_WINK,                                             // 单眼眨
 };
-/* sleep 故意不进门：睡着是个"长状态"，随机 3~6 秒后又突然醒来，
-   看着像发作性睡病。要用就 m sleep 手动进。 */
+/* 事件池：一下就走、看完自己回 normal 的。属于 II 类，但可以由 idle 偶发取用，
+   因为它们自带回位、不会停在屏幕上变成"卡住的怪表情"。 */
 static const uint8_t EVENT_POOL[] = { M_NOD, M_NONO, M_STARTLE, M_ANGRY2 };
 
 // ---------------- 命令通道 ----------------
@@ -863,14 +867,14 @@ void setup() {
    一旦从串口发命令，自动模式立刻关闭，交还手动控制。 */
 static void autoMood(uint32_t now) {
   int n;
-  bool ev = random(0, 100) < 14;                    // 14% 来个小动作
+  bool ev = random(0, 100) < 8;                     // 8% 来个小动作（点头/摇头/一惊）
   for (int tries = 0; tries < 3; tries++) {
     n = ev ? (int)EVENT_POOL[random(0, sizeof(EVENT_POOL))]
            : (int)IDLE_POOL[random(0, sizeof(IDLE_POOL))];
     if (n != g_moodId) break;                       // 抽到同一个 = 看着像没反应，重抽
   }
   if (ev) g_nextMood = now + 1600 + random(0, 1200);        // 让事件先演完再换
-  else    g_nextMood = now + 2500 + random(0, 3500);        // 2.5~6s
+  else    g_nextMood = now + 3200 + random(0, 3800);        // 3.2~7s，比原来更静一点
   faceSetMood(n);
 }
 
@@ -1002,9 +1006,65 @@ static bool     g_touch2Last = false;
 static uint32_t g_touch2Cool = 0;
 static uint32_t g_touch2At   = 0;
 
+/* ---- 第 III 类：彩蛋。不进任何池子，只认手势 ----
+   条件就写在这下面，故意**不写进帮助、不写进文档、不写进 README**。
+   彩蛋的乐趣在于自己玩出来，写在说明书里就等于没有。 */
+static uint32_t g_eggSeqT[6];
+static uint8_t  g_eggSeqP[6];
+static uint8_t  g_eggSeqN   = 0;
+static uint32_t g_eggBothAt = 0;
+static uint32_t g_eggChinAt = 0;
+
+static void eggSeqPush(uint8_t pin, uint32_t now) {
+  if (g_eggSeqN < 6) {
+    g_eggSeqT[g_eggSeqN] = now; g_eggSeqP[g_eggSeqN] = pin; g_eggSeqN++;
+  } else {
+    for (int i = 1; i < 6; i++) { g_eggSeqT[i-1] = g_eggSeqT[i]; g_eggSeqP[i-1] = g_eggSeqP[i]; }
+    g_eggSeqT[5] = now; g_eggSeqP[5] = pin;
+  }
+}
+
+/* 最近 5 次是"头、下巴、头、下巴、头"这样交替，且全程不超过 4 秒 */
+static bool eggAlternating() {
+  if (g_eggSeqN < 5) return false;
+  uint32_t span = g_eggSeqT[g_eggSeqN-1] - g_eggSeqT[g_eggSeqN-5];
+  if (span > 4000) return false;
+  for (int i = 1; i < 5; i++)
+    if (g_eggSeqP[g_eggSeqN-1-i] == g_eggSeqP[g_eggSeqN-i]) return false;
+  return true;
+}
+
 static void handleTouch(uint32_t now) {
   bool v1 = digitalRead(PIN_TOUCH);    // 头顶
   bool v2 = digitalRead(PIN_TOUCH2);   // 下巴
+
+  /* 彩蛋 A：两块一起按住不放 —— 它"卡住了" */
+  if (v1 && v2) {
+    if (!g_eggBothAt) g_eggBothAt = now | 1;
+    else if ((uint32_t)(now - g_eggBothAt) > 1500 && g_moodId != M_GLITCH) {
+      faceSetMood(M_GLITCH, 1500.0f);
+      if (g_auto) g_nextMood = now + 3000;
+      g_eggBothAt = 0;
+      g_touchAt = g_touch2At = 0;
+      Serial.println("egg");
+    }
+  } else {
+    g_eggBothAt = 0;
+  }
+
+  /* 彩蛋 B：只按住下巴，一直不松手 —— 它在等你 */
+  if (v2 && !v1) {
+    if (!g_eggChinAt) g_eggChinAt = now | 1;
+    else if ((uint32_t)(now - g_eggChinAt) > 5000 && g_moodId != M_DEAD) {
+      faceSetMood(M_DEAD, 2800.0f);
+      if (g_auto) g_nextMood = now + 4200;
+      g_eggChinAt = 0;
+      g_touch2At  = 0;
+      Serial.println("egg");
+    }
+  } else {
+    g_eggChinAt = 0;
+  }
 
   /* 头顶优先。两个一起摸时只演头顶那套，并且顺手取消下巴的回落，
      否则两套动作会在同一帧里互相覆盖，看起来像抽搐。 */
@@ -1034,6 +1094,17 @@ static void handleTouch(uint32_t now) {
     g_gazeAt   = now + 1800;
     Serial.println("touch chin");
   }
+  /* 彩蛋 C：头、下巴交替摸（像在逗它）—— 连摸 5 次、4 秒内 */
+  if ((v1 && !g_touchLast) || (v2 && !g_touch2Last)) {
+    eggSeqPush(v1 ? 1 : 0, now);
+    if (eggAlternating() && g_moodId != M_RAINBOW) {
+      faceSetMood(M_RAINBOW, 3000.0f);
+      if (g_auto) g_nextMood = now + 4400;
+      g_eggSeqN = 0;
+      Serial.println("egg");
+    }
+  }
+
   g_touchLast  = v1;
   g_touch2Last = v2;
 
