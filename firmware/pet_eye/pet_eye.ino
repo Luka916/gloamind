@@ -105,6 +105,26 @@ static void nvsNobleSet(uint8_t v) {
   p.putUChar("noble", v);
   p.end();
 }
+
+/* ---- 启动尝试次数：RTC 为主，NVS 兜底 ----
+   2026-11-16 加的补丁。原来的计数只存在 RTC_NOINIT 里，指望"软复位不清零"。
+   但这块板子的 RTC 内存**在崩溃复位时会被随机清掉**（实测出现过 magic 对不上、
+   计数归零），于是一旦蓝牙每次都在 enable 里崩，"连崩 3 次就保护"这条永远触发
+   不了 —— 串口发一次 K 就可能变成无限白屏重启。
+   NVS 相反：连崩十几次、复位十几次，一个字节都没丢。所以让它兜底。 */
+static uint8_t nvsTryGet() {
+  Preferences p;
+  if (!p.begin("peteye", true)) return 0;
+  uint8_t v = p.getUChar("tryn", 0);
+  p.end();
+  return v;
+}
+static void nvsTrySet(uint8_t v) {
+  Preferences p;
+  if (!p.begin("peteye", false)) return;
+  p.putUChar("tryn", v);
+  p.end();
+}
                             /* 为什么是 18 而不是 13：PINOUT.md 里 13 是 TB6612 的 BIN2
                                （底盘右轮方向），18 才是留给 TILT 的。13 现在空着，
                                但一旦接上底盘就撞车，别图省事。 */
@@ -507,6 +527,7 @@ static void execCommand(String buf) {
            而这个命令 100% 有效。 */
         /* 删掉"蓝牙坏了"的标记，否则重启后还是会跳过 */
         nvsNobleSet(0);
+        nvsTrySet(0);
         if (g_cfgMounted && FFat.exists("/noble.flag")) FFat.remove("/noble.flag");
         g_bootMagic = 0;
         g_bootCount = 0;
@@ -720,8 +741,14 @@ void setup() {
   Serial.setDebugOutput(true);
 
   /* 上电 / 拔插 USB 时 RTC 内存会掉，magic 对不上就重新计数。
-     连续软复位才会累积。 */
+     连续软复位才会累积。
+     2026-11-16：崩溃复位也可能把 RTC 清掉，所以计数同时从 NVS 取一次较大值，
+     否则保护永远触发不了（见 nvsTryGet 上面的注释）。 */
   if (g_bootMagic != BOOT_MAGIC) { g_bootMagic = BOOT_MAGIC; g_bootCount = 0; g_bleStep = 0; }
+  {
+    uint8_t nvsTry = nvsTryGet();
+    if (nvsTry > (uint8_t)g_bootCount) g_bootCount = nvsTry;   // RTC 被清了就信 NVS
+  }
   g_bootCount++;
 
   Serial.println(F("\npet_eye boot"));
@@ -798,6 +825,7 @@ void setup() {
   bool flagBroken = nvsNobleFlag() || (g_cfgMounted && FFat.exists("/noble.flag"));
   if (flagBroken || g_bootCount >= 3) {
     g_bleSkipped = true;
+    nvsTrySet(0);                            // 已经定案，次数不用再记
     if (!flagBroken) {
       nvsNobleSet(1);                        // 主力：NVS，掉电不丢
       if (g_cfgMounted) {                    // 顺手再写一份 FAT（现在写不进，留着不碍事）
@@ -808,8 +836,10 @@ void setup() {
     Serial.printf("[保护] 跳过蓝牙（%s）。眼睛和舵机正常；串口发 K 可重试。\n",
                   flagBroken ? "已记录蓝牙起不来" : "连续失败，已记录");
   } else {
+    nvsTrySet((uint8_t)g_bootCount);   // 先记账再动硬件：崩了下次也知道试过几次
     bleBegin();
-    g_bootCount = 0;      // 走到这里说明蓝牙初始化没崩 —— 本次启动成功，计数清零
+    nvsTrySet(0);         // 走到这里说明蓝牙初始化没崩 —— 本次启动成功，计数清零
+    g_bootCount = 0;
   }
   Serial.printf("BLE %s, free heap = %u\n",
                 g_bleSkipped ? "SKIPPED" : "on", (unsigned)ESP.getFreeHeap());

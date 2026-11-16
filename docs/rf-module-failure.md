@@ -147,6 +147,13 @@ RTC_NOINIT_ATTR uint32_t g_bleStep;     // which step it died on
 **Layer 1 — count failed boots.** Increment on every boot, clear only when BLE comes up. At
 three consecutive failures, skip BLE entirely this boot. The eyes appear; the robot lives.
 
+A counter kept only in `RTC_NOINIT` is not enough, and this cost a second bug. `RTC_NOINIT` is
+documented as surviving a software reset — it does not survive *this* kind of reset. The crash
+wipes it, so the counter restarts at 1 on every attempt, and "three failures and stop" never
+fires: `K` became an infinite white-screen loop. The counter is now mirrored into NVS and the
+larger of the two values wins. Verified by sending `K` and watching the log: three boots, then
+the guard trips and the eyes come back.
+
 **Layer 2 — persist the verdict in NVS.** Once the flag is set, every boot skips BLE without
 even trying, so power-cycling is instant instead of 4 seconds of white screen. NVS was chosen
 over the filesystem deliberately: the LittleFS partition on this board ended up read-only
