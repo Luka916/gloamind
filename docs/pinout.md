@@ -80,28 +80,42 @@ digital IOs for two pins — fine for buttons and LEDs, useless for motor PWM.
 
 ## TFT_eSPI setup
 
-In `User_Setup.h`:
+`deploy.ps1` writes this file for you. By hand, it is:
 
 ```cpp
+#define USER_SETUP_INFO "GloaMind-ST7735"
+
 #define ST7735_DRIVER
 #define TFT_WIDTH  128
 #define TFT_HEIGHT 160
-#define ST7735_GREENTAB160x80   // whichever tab matches your panel
+#define ST7735_REDTAB          // the panels used here; see below if yours differs
 
 #define TFT_MOSI 11
 #define TFT_SCLK 12
 #define TFT_CS   10
 #define TFT_DC    9
 #define TFT_RST   8
-#define TFT_BL    7
-#define TFT_BACKLIGHT_ON HIGH
+
+#define LOAD_GLCD
+#define USE_HSPI_PORT
+#define SPI_FREQUENCY       40000000
+#define SPI_READ_FREQUENCY  20000000
+#define TFT_RGB_ORDER TFT_RGB
 ```
 
-Run SPI at **27MHz**. At 40MHz the image tears, and how early it tears depends on wire length
-and how good your jumpers are.
+**Backlight is not in here.** GPIO7 is driven by the sketch (`PIN_BLK`), so it can be dimmed and
+turned off. Wiring it to 3V3 instead works, and costs you both.
 
-Wrong colours: check `TFT_INVERSION_ON` and `TFT_BGR` first. Do **not** go looking for a
-different TAB setting — that only shifts the image by a pixel or two.
+**SPI at 40MHz is the value this build has been running**, with short jumpers. If the image tears
+or flickers, drop to `27000000` — long or thin wires are the usual reason, and shortening them
+beats lowering the clock.
+
+**Wrong colours:** `TFT_RGB_ORDER TFT_BGR`, then `TFT_INVERSION_ON`. Four combinations, all of
+them one line.
+
+**Image offset or mirrored:** that is the TAB, and it is worth trying all four rather than
+reasoning about it — `REDTAB`, `GREENTAB`, `GREENTAB2`, `GREENTAB3`. Five seconds each. A wrong
+tab shifts or mirrors the picture; it does not change colours.
 
 ## Build flags
 
