@@ -64,6 +64,9 @@ static String g_reply;   // 本次命令要回给手机的话
 #define PIN_NECK  14        // 云台舵机信号（黄线）· 水平 PAN
 #define PIN_TILT  18        // 云台舵机信号（黄线）· 竖直 TILT
 #define PIN_TOUCH 13        // 头顶触摸板 OUT（TTP223，3V3 供电，高有效）
+#define PIN_TOUCH2 17       // 下巴触摸板 OUT（第二个 TTP223）
+                            /* 为什么是 17：18 是 TILT 舵机，13 已给头顶，
+                               17 就在 18 上面一根，空着且不是启动脚。 */
 
 /* 启动保护变量（必须放在 setup 与命令处理之前，否则 C++ 报未声明） */
 /* ==================== 启动保护（防"蓝牙崩溃 → 无限重启"） ====================
@@ -328,7 +331,7 @@ static void printHelp() {
   say("a <0|1>       自动模式开关（自己演 / 只听你的）\n");
   say("K            清启动计数并重启（蓝牙被保护跳过时用）\n");
   say("w            射频体检：扫一次 WiFi（能扫到=射频好，蓝牙只是软件问题）\n");
-  say("             头顶触摸板已接 GPIO13（摸一下：看你→抬头→笑）\n");
+  say("             触摸：头顶 GPIO13（看你→抬头→笑）· 下巴 GPIO17（缩一下→歪头→眯眼）\n");
   say("i             状态\n");
   for (int i = 0; i < MOOD_COUNT; i++) say("  %2d %s\n", i, MOOD_NAMES[i]);
 }
@@ -797,6 +800,7 @@ void setup() {
   /* 下拉很关键：触摸板没接的时候 13 号脚是浮空的，
      浮空输入会随机读到高电平 → 莫名其妙自己笑。下拉之后没接线就永远是低。 */
   pinMode(PIN_TOUCH, INPUT_PULLDOWN);
+  pinMode(PIN_TOUCH2, INPUT_PULLDOWN);   // 下巴，同样必须下拉
 
   servoAttach(PIN_NECK);
   servoWriteDeg(PIN_NECK, (int)g_neckPos);
@@ -990,15 +994,24 @@ static void autoBehavior(uint32_t now) {
    
    TTP223 点动模式：手按住出高、松开变低。所以只认"上升沿"，
    否则按住不放会每帧触发一次。冷却 1.4 秒防止抖动连发。 */
-static bool     g_touchLast = false;
-static uint32_t g_touchCool = 0;
-static uint32_t g_touchAt   = 0;
+static bool     g_touchLast  = false;
+static uint32_t g_touchCool  = 0;
+static uint32_t g_touchAt    = 0;
+
+static bool     g_touch2Last = false;
+static uint32_t g_touch2Cool = 0;
+static uint32_t g_touch2At   = 0;
 
 static void handleTouch(uint32_t now) {
-  bool v = digitalRead(PIN_TOUCH);
-  if (v && !g_touchLast && (int32_t)(now - g_touchCool) >= 0) {
+  bool v1 = digitalRead(PIN_TOUCH);    // 头顶
+  bool v2 = digitalRead(PIN_TOUCH2);   // 下巴
+
+  /* 头顶优先。两个一起摸时只演头顶那套，并且顺手取消下巴的回落，
+     否则两套动作会在同一帧里互相覆盖，看起来像抽搐。 */
+  if (v1 && !g_touchLast && (int32_t)(now - g_touchCool) >= 0) {
     g_touchCool = now + 1400;
     g_touchAt   = now;
+    g_touch2At  = 0;
 
     faceSetDir(0, 90.0f);                                   // ① 看你
     g_tiltTgt  = (float)constrain(g_tiltHome - 12, g_tiltLo, g_tiltHi); // ② 抬头
@@ -1006,14 +1019,34 @@ static void handleTouch(uint32_t now) {
     g_neckPend = false;                                     // 取消还没执行的下一次注视
     faceSetMood(M_HAPPY, 220.0f);                           // ③ 笑
     g_gazeAt   = now + 2600;                                // 看人看久一点，别马上被自动模式盖掉
-    Serial.println("touch");
-  }
-  g_touchLast = v;
+    Serial.println("touch head");
+  } else if (v2 && !g_touch2Last && (int32_t)(now - g_touch2Cool) >= 0) {
+    /* 下巴被挠：缩一下、歪头、眯眼。和头顶那套刻意做得不一样 ——
+       摸头是"抬头看你"，挠下巴是"舒服得歪过去"，两种反应不能雷同。 */
+    g_touch2Cool = now + 1400;
+    g_touch2At   = now;
+    g_touchAt    = 0;
 
-  if (g_touchAt && (uint32_t)(now - g_touchAt) > 1300) {     // ④ 回落
+    g_tiltTgt  = (float)constrain(g_tiltHome + 7, g_tiltLo, g_tiltHi);   // 微微低头缩一下
+    g_neckTgt  = (float)constrain(g_panHome + 18, NECK_MIN, NECK_MAX);   // 头歪向一边
+    g_neckPend = false;
+    faceSetMood(M_SHY, 240.0f);                             // 害羞（眯眼 + 偏头）
+    g_gazeAt   = now + 1800;
+    Serial.println("touch chin");
+  }
+  g_touchLast  = v1;
+  g_touch2Last = v2;
+
+  if (g_touchAt && (uint32_t)(now - g_touchAt) > 1300) {     // ④ 头顶回落
     g_touchAt = 0;
     g_tiltTgt = (float)g_tiltHome;
     if (g_auto) g_nextMood = now + 1800;
+  }
+  if (g_touch2At && (uint32_t)(now - g_touch2At) > 1100) {   // ④ 下巴回落（快一点，像缩一下就回来了）
+    g_touch2At = 0;
+    g_tiltTgt  = (float)g_tiltHome;
+    g_neckTgt  = (float)g_panHome;
+    if (g_auto) g_nextMood = now + 1500;
   }
 }
 
@@ -1023,7 +1056,7 @@ void loop() {
   handleBle();          // 蓝牙来的命令也在主线程执行，跟串口完全同一条路
 
   uint32_t now = millis();
-  handleTouch(now);     // 头顶被摸：眼睛看你 → 抬头 → 笑 → 回落
+  handleTouch(now);     // 摸头：看你→抬头→笑；摸下巴：缩→歪头→眯眼。两个都摸时头顶优先
 
   /* 手机连上/断开的反应放在主循环做，不在蓝牙回调里做 ——
      回调在另一个任务，直接改表情状态会跟渲染打架。 */

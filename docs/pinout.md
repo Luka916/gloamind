@@ -22,7 +22,8 @@ are building a full body.
 |---|---|---|
 | Servo PAN (horizontal) | **14** | 50Hz, 30°–150°, 90° = straight ahead |
 | Servo TILT (vertical) | **18** | 50Hz, **23° / 62° / 118°** — see below |
-| Touch (TTP223) | **13** | 3.3V supply, digital in, active high |
+| Touch, head (TTP223) | **13** | 3.3V supply, digital in, active high |
+| Touch, chin (TTP223) | **17** | second pad; looks up vs. squints, so the robot knows where it was touched |
 
 **TILT angles are inverted on purpose:** a larger number means further *down*.
 Calibrated travel on the reference build: 23° looks up, 62° is level, 118° looks down.
@@ -40,9 +41,9 @@ it is the difference between a board that keeps its radio and one that does not 
 [`radio-survival.md`](radio-survival.md) for why, and for the checklist to run before the
 first power-up.
 
-**Give the touch pin an internal pull-down.** With nothing wired, GPIO13 floats and reads high
+**Give every touch pin an internal pull-down.** With nothing wired, the pin floats and reads high
 at random — the robot appears to pat itself and starts smiling on its own. `INPUT_PULLDOWN`
-removes the ghost for free.
+removes the ghost for free, and it is needed on both pads, not just the first.
 
 ## Pins to avoid
 
