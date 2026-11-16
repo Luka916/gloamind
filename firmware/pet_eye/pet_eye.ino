@@ -284,23 +284,43 @@ static bool     g_showFps  = true;   // 左上角帧率字样，f 0 可关（正
 static uint32_t g_nextMood = 0;
 static uint32_t g_nextDir  = 0;
 
+/* ---- 困 / 睡 三级递进 ---- */
+static uint32_t g_lastPet     = 0;    // 最后一次互动（被摸 / 收到命令）
+static uint8_t  g_drowseBlink = 0;    // 打瞌睡时已经合眼几次
+static bool     g_asleep      = false;
+
+/* ---- 摸太多次会烦（数字出处见下面 petTally） ---- */
+static uint8_t  g_petCount = 0;
+static uint32_t g_petWin   = 0;
+
 /* ==================== 表情分三层 ====================
    2026-11-16 15:05 重排。原来"能待住的"全塞进一个常驻池随机抽，于是彩虹眼、
    害羞、哭、生气每十几秒就来一次 —— 常见了就没有信息量，而且会盖掉
    "被摸才有反应"这条因果。成品应该安静，情绪要有由来。
 
    第 I 类 常态（IDLE_POOL）——没人理的时候自己演的，只许无聊的。
-       眨眼是自动叠加的，不占池子。
+       2026-11-16 16:20 按用户要求扩到 9 个：加入开心、得意、轻视、闭眼、大眼睛。
+       「轻视」和「生气」是同一副眼睛的两个版本（生气左右镜像成 V，轻视把右眼
+       翻成和左眼一样，两只同向斜），所以它是情绪而不是动作，可以常驻。
+       「闭眼」不进眨眼层，就是合上歇一会儿 —— 它也是睡着的前一步，见 autoMood。
    第 II 类 状态——**只能被事件触发**：触摸 / 串口命令 / Agent 说话 / 长时间没人理。
        永不随机出现。这是"跟它互动它才给表情"。
    第 III 类 彩蛋——不进任何池子，靠隐藏手势触发，见 handleTouch 末尾。
        故意不写进帮助、不写进文档：要自己玩出来才算彩蛋。 */
 static const uint8_t IDLE_POOL[] = {
-  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,   // 约 55%：大部分时间就是它
-  M_PEEK,   M_PEEK,                                   // 偷看
-  M_THINK,  M_THINK,                                  // 发呆
+  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,   // 约 33%：大部分时间就是它
+  M_HAPPY,  M_HAPPY,                                  // 开心
+  M_BLINK,  M_BLINK,                                  // 闭眼：合上歇一会儿
+  M_SMUG,                                             // 得意
+  M_DESPISE,                                          // 轻视
   M_WINK,                                             // 单眼眨
+  M_PEEK,                                             // 偷看
+  M_THINK,                                            // 发呆
+  M_SURPRISE,                                         // 大眼睛
 };
+/* 半常态：既不是"没事就在那儿"，也不是"必须有事件"。
+   太久没人理，会有点无语 / 有点困惑；以后 Agent 也能直接调。概率压得很低。 */
+static const uint8_t IDLE_RARE[] = { M_SPEECHLESS, M_CONFUSED };
 /* 事件池：一下就走、看完自己回 normal 的。属于 II 类，但可以由 idle 偶发取用，
    因为它们自带回位、不会停在屏幕上变成"卡住的怪表情"。 */
 static const uint8_t EVENT_POOL[] = { M_NOD, M_NONO, M_STARTLE, M_ANGRY2 };
@@ -336,6 +356,7 @@ static void printHelp() {
   say("K            清启动计数并重启（蓝牙被保护跳过时用）\n");
   say("w            射频体检：扫一次 WiFi（能扫到=射频好，蓝牙只是软件问题）\n");
   say("             触摸：头顶 GPIO13（看你→抬头→笑）· 下巴 GPIO17（缩一下→歪头→眯眼）\n");
+  say("             同一次连续摸超过 4/8/12 下会依次不耐烦→生气→更生气，停手 25 秒消气\n");
   say("i             状态\n");
   for (int i = 0; i < MOOD_COUNT; i++) say("  %2d %s\n", i, MOOD_NAMES[i]);
 }
@@ -356,18 +377,39 @@ static int findMood(const String& s) {
 }
 
 /* 串口和蓝牙最终都走这里。返回值没用，反馈全靠 say()。 */
+static bool     g_touchLast  = false;
+static uint32_t g_touchCool  = 0;
+static uint32_t g_touchAt    = 0;
+
+static bool     g_touch2Last = false;
+static uint32_t g_touch2Cool = 0;
+static uint32_t g_touch2At   = 0;
+
+/* 摸一下的完整反应。抽出来是为了两件事：
+   ① 头顶和下巴两套只差一个 head 参数，不用写两遍；
+   ② 串口 `x` 命令能走同一条路 —— 不用真用手按也能验证/演示"摸太多次会烦"。 */
+static void petReact(uint32_t now, bool head);
+
 static void execCommand(String buf) {
   buf.trim();
   if (!buf.length()) return;
   char cmd = buf[0];
   String arg = buf.substring(1); arg.trim();
 
+  /* 任何一条命令都算"有人在跟它说话"，但只读命令不算 ——
+     否则我每隔几秒 `i` 查一次状态，它就永远睡不着了。 */
+  bool readOnly = (cmd == '?' || cmd == 'i' || cmd == 'I' || cmd == 'x' || cmd == 'X'
+                   || ((cmd == 'c' || cmd == 'C') && arg.length() == 0));
+  if (!readOnly) {
+    g_lastPet     = millis();
+    g_drowseBlink = 0;
+    if (g_asleep) { g_asleep = false; faceSetMood(M_STARTLE, 180.0f); }
+  }
+
   /* 只有"真会改变画面"的命令才关自动模式。
      ? 和 i 是只读的 —— 以前敲个问号看帮助，桌宠就从此不动了，很莫名其妙。 */
   /* c 不带参数是纯查询，跟 ? / i 一样不该关掉自动模式；
      c p / c t / c s 会改状态，按"会改变画面"处理。 */
-  bool readOnly = (cmd == '?' || cmd == 'i' || cmd == 'I'
-                   || ((cmd == 'c' || cmd == 'C') && arg.length() == 0));
   if (!readOnly) g_auto = false;
 
   switch (cmd) {
@@ -375,6 +417,22 @@ static void execCommand(String buf) {
       int id = findMood(arg);
       if (id >= 0) { faceSetMood(id); say("mood -> %s\n", MOOD_NAMES[id]); }
       else say("unknown mood\n");
+      break;
+    }
+    case 'x': case 'X': {
+      /* 模拟摸头顶。不给参数就摸一下，`x 12` 连摸 12 下 ——
+         用来验证"第 4 下不耐烦 / 第 8 下生气 / 第 12 下更生气"这条曲线，
+         也用来给不摸它的人演示。 */
+      int n = arg.length() ? constrain(arg.toInt(), 1, 30) : 1;
+      bool wasAsleep = g_asleep;
+      for (int i = 0; i < n; i++) {
+        petReact(millis(), true);
+        if (g_petCount == 4 || g_petCount == 8 || g_petCount == 12)
+          say("  第 %u 下 -> %s\n", (unsigned)g_petCount, MOOD_NAMES[g_moodId]);
+      }
+      g_touchAt = millis();                    // 让"抬手"那套回落也照样跑
+      say("pet x%d, 这一轮第 %u 下，当前 %s (wasAsleep=%d)\n",
+          n, (unsigned)g_petCount, MOOD_NAMES[g_moodId], wasAsleep ? 1 : 0);
       break;
     }
     case 'd': case 'D': {
@@ -406,6 +464,11 @@ static void execCommand(String buf) {
           g_neckPanDeg, neckEyeOffset(g_dirTgt[0] * g_ampCur),
           (unsigned long)fpsShown, (unsigned)ESP.getFreeHeap(), g_bleConnected ? 1 : 0);
       say("tilt=%.0f nod=%.1f\n", g_tiltPos, faceNeckNodDeg());
+      /* 情绪状态一眼看全：这一轮摸了几下、是不是困了、是不是睡了。
+         调"摸太多次会烦"和"太久没人理会睡"的时候，没有这三个数就只能靠猜。 */
+      say("pet=%u/45s drowsy=%d asleep=%d idle=%lus\n",
+          (unsigned)g_petCount, (g_petWin && (uint32_t)(millis() - g_lastPet) > 90000) ? 1 : 0,
+          g_asleep ? 1 : 0, (unsigned long)((millis() - g_lastPet) / 1000));
       say("cfg=%s pan=%d~%d tilt=%d~%d\n", g_cfgSrc, g_panLo, g_panHi, g_tiltLo, g_tiltHi);
       break;
     case 'p': case 'P': {
@@ -858,6 +921,7 @@ void setup() {
   g_nextMood = millis() + 3000;
   g_nextDir  = millis() + 1200;
   g_nextNeck = millis() + 5000;      // 开机 5 秒后开始东张西望
+  g_lastPet  = millis();             // 困/睡计时从开机算起，别一上电就 90 秒
 }
 
 // ---------------- 自动行为 ----------------
@@ -866,15 +930,47 @@ void setup() {
    固定 3 秒一次会读出"定时器"的味道，随机反而像在发呆。
    一旦从串口发命令，自动模式立刻关闭，交还手动控制。 */
 static void autoMood(uint32_t now) {
+  /* ---- 三级递进：清醒 → 困（闭眼）→ 睡着 ----
+     直接跳 sleep 会读成"突然关机"。合眼一下、再合一下、第三下没睁开，
+     才像真的困了。这三个数字是手感，不是文献：90 秒开始困、
+     闭三下（约 4~6 秒）睡着。 */
+  uint32_t idle = (uint32_t)(now - g_lastPet);
+
+  if (idle > 180000) idle = 180000;                     // 3 分钟封顶，防溢出乱来
+
+  if (idle > 90000) {
+    if (g_moodId == M_BLINK) {                          // 刚闭完这一下
+      g_drowseBlink++;
+      if (g_drowseBlink >= 3) {                         // 第三下没睁开 = 睡着
+        g_asleep = true;
+        faceSetMood(M_SLEEP, 1.0f);
+        g_nextMood = now + 3600000;                     // 睡着了就别再换表情
+        Serial.println("idle -> sleep");
+        return;
+      }
+      faceSetMood(M_NORMAL, 1.0f);                      // 又睁开一下
+      g_nextMood = now + 1000 + random(0, 900);
+    } else {
+      faceSetMood(M_BLINK, 1.0f);                       // 眼皮撑不住了
+      g_nextMood = now + 800 + random(0, 600);
+    }
+    return;
+  }
+
   int n;
-  bool ev = random(0, 100) < 8;                     // 8% 来个小动作（点头/摇头/一惊）
+  int r = random(0, 100);
+  bool ev   = r < 8;                                    // 8% 小动作（点头/摇头/一惊）
+  bool rare = !ev && r < 20;                            // 12% 半常态（无语/困惑）
   for (int tries = 0; tries < 3; tries++) {
-    n = ev ? (int)EVENT_POOL[random(0, sizeof(EVENT_POOL))]
-           : (int)IDLE_POOL[random(0, sizeof(IDLE_POOL))];
+    n = ev   ? (int)EVENT_POOL[random(0, sizeof(EVENT_POOL))]
+      : rare ? (int)IDLE_RARE[random(0, sizeof(IDLE_RARE))]
+             : (int)IDLE_POOL[random(0, sizeof(IDLE_POOL))];
     if (n != g_moodId) break;                       // 抽到同一个 = 看着像没反应，重抽
   }
-  if (ev) g_nextMood = now + 1600 + random(0, 1200);        // 让事件先演完再换
-  else    g_nextMood = now + 3200 + random(0, 3800);        // 3.2~7s，比原来更静一点
+  if (ev)                g_nextMood = now + 1600 + random(0, 1200);  // 让事件先演完再换
+  else if (rare)         g_nextMood = now + 3000 + random(0, 2500);
+  else if (n == M_BLINK) g_nextMood = now + 1100 + random(0, 900);   // 闭眼不能站太久
+  else                   g_nextMood = now + 3200 + random(0, 3800);
   faceSetMood(n);
 }
 
@@ -981,8 +1077,54 @@ static void gazeMicro(uint32_t now) {
   g_microAt = now + 900 + random(0, 800);
 }
 
+/* ==================== 摸太多次会烦 ====================
+   不是拍脑袋定的数，三条都能查到出处：
+
+   · **第 4 下** —— Oregon Humane Society 的行为说明写得很直白：
+     "猫能享受前三次抚摸，第四下就咬你"。所以第 4 次不是"生气"，
+     是**第一次不耐烦**：移开视线 + 轻视。这是警告，不是发作。
+   · **第 8 下** —— University of Lincoln 用 34 只猫做过实测（8 个部位、
+     每处 15 次一秒抚摸），主人摸时猫的负面行为**中位数 8.5 次**。
+     到这一步才真的生气。
+   · **第 12 下** —— 还不松手就恼了，加抖一抖。
+     参考值：猫对头部的耐受约 15 下，这是把上限拿来当"别再摸了"的点。
+
+   窗口 45 秒（一次连续的"撸"），停手 25 秒计数归零 ——
+   猫也是这样，气一会儿就忘，不会记仇到明天。 */
+static uint8_t petTally(uint32_t now) {
+  /* 注意别写 `g_petWin = now | 1`：那会让 now 是偶数时窗口起点比 now 大 1ms，
+     下一次算出来是 -1，转成 uint32 变成"四万多年前"，窗口立刻被重置 ——
+     `x 13` 连摸 13 下就永远停在第 1 下，一次都升不了级。踩过。 */
+  if (!g_petWin || (uint32_t)(now - g_petWin) > 45000) {
+    g_petWin = now;
+    g_petCount = 0;
+  }
+  if (g_petCount < 250) g_petCount++;
+  return g_petCount;
+}
+
 static void autoBehavior(uint32_t now) {
+  /* 停手一会儿，气就消了。手动模式下也要走，所以放在 g_auto 判断之前。 */
+  if (g_petCount && (uint32_t)(now - g_petWin) > 25000) {
+    g_petCount = 0;
+    if (g_moodId == M_ANGRY || g_moodId == M_ANGRY2) {
+      faceSetMood(M_NORMAL, 400.0f);
+      g_nextMood = now + 2500;
+      g_tiltTgt  = (float)g_tiltHome;
+      g_neckTgt  = (float)g_panHome;
+      Serial.println("calmed down");
+    }
+  }
+
   if (!g_auto) return;
+
+  /* 睡着了就别再东张西望 —— 眼睛乱瞟的机器人看起来不像睡着，像宕机。
+     头慢慢垂下去，视线定在原地。被摸或收到命令才会醒（见 handleTouch / execCommand）。 */
+  if (g_asleep) {
+    g_neckTgt = (float)g_panHome;
+    g_tiltTgt = (float)constrain(g_tiltHome + 9, g_tiltLo, g_tiltHi);
+    return;
+  }
   if ((int32_t)(now - g_nextMood) >= 0) autoMood(now);
   if ((int32_t)(now - g_gazeAt) >= 0)   gazePick(now);
   else if ((int32_t)(now - g_microAt) >= 0) gazeMicro(now);
@@ -997,14 +1139,8 @@ static void autoBehavior(uint32_t now) {
    分开演就是三个独立动作；连起来才像"它发现你在摸它"。
    
    TTP223 点动模式：手按住出高、松开变低。所以只认"上升沿"，
-   否则按住不放会每帧触发一次。冷却 1.4 秒防止抖动连发。 */
-static bool     g_touchLast  = false;
-static uint32_t g_touchCool  = 0;
-static uint32_t g_touchAt    = 0;
-
-static bool     g_touch2Last = false;
-static uint32_t g_touch2Cool = 0;
-static uint32_t g_touch2At   = 0;
+   否则按住不放会每帧触发一次。冷却 1.4 秒防止抖动连发。
+   （状态变量 g_touch* 提到文件前面了，因为 `x` 命令也要用。） */
 
 /* ---- 第 III 类：彩蛋。不进任何池子，只认手势 ----
    条件就写在这下面，故意**不写进帮助、不写进文档、不写进 README**。
@@ -1032,6 +1168,67 @@ static bool eggAlternating() {
   for (int i = 1; i < 5; i++)
     if (g_eggSeqP[g_eggSeqN-1-i] == g_eggSeqP[g_eggSeqN-i]) return false;
   return true;
+}
+
+static void petReact(uint32_t now, bool head) {
+  bool woke = g_asleep;                     // 刚才是不是睡着的
+  g_asleep      = false;
+  g_drowseBlink = 0;
+  g_lastPet     = now;                      // 有人来了，困/睡的计时重来
+  g_neckPend    = false;                    // 取消还没执行的下一次注视
+
+  uint8_t n = petTally(now);                // 这是这一轮连续摸的第几下
+
+  if (woke) {
+    /* 被弄醒：先一惊，再慢慢回神。不笑 —— 刚醒的人不会先笑。 */
+    faceSetDir(0, 140.0f);
+    faceSetMood(M_STARTLE, 180.0f);
+    g_tiltTgt = (float)constrain(g_tiltHome - 6, g_tiltLo, g_tiltHi);
+    g_neckTgt = (float)g_panHome;
+    g_gazeAt  = now + 2400;
+    Serial.println(head ? "touch head (woke)" : "touch chin (woke)");
+  } else if (n >= 12) {
+    /* 还不松手：真恼了，抖一下 */
+    faceSetMood(M_ANGRY2, 200.0f);
+    g_tiltTgt = (float)constrain(g_tiltHome + 6, g_tiltLo, g_tiltHi);
+    g_neckTgt = (float)g_panHome;
+    g_gazeAt  = now + 1600;
+    Serial.println(head ? "touch head (angry2)" : "touch chin (angry2)");
+  } else if (n >= 8) {
+    /* 第 8 下：生气，不再抬头看你 */
+    faceSetDir(0, 200.0f);
+    faceSetMood(M_ANGRY, 200.0f);
+    g_tiltTgt = (float)constrain(g_tiltHome + 4, g_tiltLo, g_tiltHi);
+    g_neckTgt = (float)g_panHome;
+    g_gazeAt  = now + 1600;
+    Serial.println(head ? "touch head (angry)" : "touch chin (angry)");
+  } else if (n >= 4) {
+    /* 第 4 下：第一次不耐烦 —— 不抬头了，眼睛溜走 */
+    if (head) faceSetDir(3, 320.0f);        // 眼睛往右移开，不看你
+    faceSetMood(M_DESPISE, 260.0f);
+    g_tiltTgt = (float)g_tiltHome;
+    g_neckTgt = (float)constrain(g_panHome + 10, NECK_MIN, NECK_MAX);
+    g_gazeAt  = now + 2200;
+    Serial.println(head ? "touch head (despise)" : "touch chin (despise)");
+  } else if (head) {
+    faceSetDir(0, 90.0f);                                   // ① 看你
+    g_tiltTgt  = (float)constrain(g_tiltHome - 12, g_tiltLo, g_tiltHi); // ② 抬头
+    g_neckTgt  = (float)g_panHome;
+    faceSetMood(M_HAPPY, 220.0f);                           // ③ 笑
+    g_gazeAt   = now + 2600;
+    Serial.println("touch head");
+  } else {
+    /* 下巴被挠：缩一下、歪头、眯眼。和头顶那套刻意做得不一样 ——
+       摸头是"抬头看你"，挠下巴是"舒服得歪过去"，两种反应不能雷同。 */
+    g_tiltTgt  = (float)constrain(g_tiltHome + 7, g_tiltLo, g_tiltHi);
+    g_neckTgt  = (float)constrain(g_panHome + 18, NECK_MIN, NECK_MAX);
+    faceSetMood(M_SHY, 240.0f);
+    g_gazeAt   = now + 1800;
+    Serial.println("touch chin");
+  }
+
+  /* 反应别被自动模式下一帧就盖掉 */
+  if (g_auto) g_nextMood = now + 2200;
 }
 
 static void handleTouch(uint32_t now) {
@@ -1072,27 +1269,12 @@ static void handleTouch(uint32_t now) {
     g_touchCool = now + 1400;
     g_touchAt   = now;
     g_touch2At  = 0;
-
-    faceSetDir(0, 90.0f);                                   // ① 看你
-    g_tiltTgt  = (float)constrain(g_tiltHome - 12, g_tiltLo, g_tiltHi); // ② 抬头
-    g_neckTgt  = (float)g_panHome;
-    g_neckPend = false;                                     // 取消还没执行的下一次注视
-    faceSetMood(M_HAPPY, 220.0f);                           // ③ 笑
-    g_gazeAt   = now + 2600;                                // 看人看久一点，别马上被自动模式盖掉
-    Serial.println("touch head");
+    petReact(now, true);
   } else if (v2 && !g_touch2Last && (int32_t)(now - g_touch2Cool) >= 0) {
-    /* 下巴被挠：缩一下、歪头、眯眼。和头顶那套刻意做得不一样 ——
-       摸头是"抬头看你"，挠下巴是"舒服得歪过去"，两种反应不能雷同。 */
     g_touch2Cool = now + 1400;
     g_touch2At   = now;
     g_touchAt    = 0;
-
-    g_tiltTgt  = (float)constrain(g_tiltHome + 7, g_tiltLo, g_tiltHi);   // 微微低头缩一下
-    g_neckTgt  = (float)constrain(g_panHome + 18, NECK_MIN, NECK_MAX);   // 头歪向一边
-    g_neckPend = false;
-    faceSetMood(M_SHY, 240.0f);                             // 害羞（眯眼 + 偏头）
-    g_gazeAt   = now + 1800;
-    Serial.println("touch chin");
+    petReact(now, false);
   }
   /* 彩蛋 C：头、下巴交替摸（像在逗它）—— 连摸 5 次、4 秒内 */
   if ((v1 && !g_touchLast) || (v2 && !g_touch2Last)) {

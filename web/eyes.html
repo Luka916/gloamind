@@ -136,20 +136,20 @@
       <button data-m="blink"><span class="em">—</span>闭眼</button>
       <button data-m="wink"><span class="em">😜</span>wink<br>闭左眼</button>
       <button data-m="peek"><span class="em">👀</span>偷看</button>
+      <button data-m="think"><span class="em">🤔</span>思考<span class="trig">发呆</span></button>
+      <button data-m="surprise"><span class="em">😲</span>大眼睛<span class="trig">只是瞪眼</span></button>
     </div>
   </div>
 
   <div class="grp">
     <div class="grp-t"><span>二级 · 条件触发</span><span class="hint">满足条件才切</span></div>
     <div class="btns" id="moods2">
-      <button data-m="surprise"><span class="em">😲</span>惊讶<span class="trig">突然声响</span></button>
       <button data-m="angry"><span class="em">😡</span>生气<span class="trig">连续戳</span></button>
       <button data-m="cry"><span class="em">😭</span>哭<span class="trig">没人理</span></button>
       <button data-m="dizzy"><span class="em">😵‍💫</span>晕<span class="trig">快速晃动</span></button>
       <button data-m="love"><span class="em">🥰</span>喜欢<span class="trig">摸头</span></button>
-      <button data-m="speechless"><span class="em">😅</span>无语<span class="trig">奇怪问题</span></button>
-      <button data-m="think"><span class="em">🤔</span>思考<span class="trig">收到指令</span></button>
-      <button data-m="sleep"><span class="em">😴</span>睡着<span class="trig">静止 5 分</span></button>
+      <button data-m="speechless"><span class="em">😅</span>无语<span class="trig">奇怪问题 / 太久没人理</span></button>
+      <button data-m="sleep"><span class="em">😴</span>睡着<span class="trig">闭眼几下之后</span></button>
       <button data-m="shy"><span class="em">😳</span>害羞<span class="trig">被盯着看</span></button>
       <button data-m="confused"><span class="em">😕</span>困惑<span class="trig">听不懂</span></button>
       <button data-m="rainbow"><span class="em">🌈</span>彩虹<span class="trig">彩蛋</span></button>
@@ -1606,9 +1606,12 @@ if(heartBox){
 // wink 已改成持续闭左眼，没有"节奏"可调，对应的开关也一起删了
 
 // 一级：不需要条件，待机时自己轮换 —— 机器人"没事干"的时候就用这几个
-const TIER1 = ['normal','happy','smug','despise','blink','wink','peek'];
+// 2026-11-16：按固件对齐扩到 9 个。加上开心、得意、轻视、闭眼、思考、大眼睛。
+// 「轻视」和「生气」是同一副眼睛的两版：生气左右镜像成 V，轻视把右眼翻成和左眼一样。
+const TIER1 = ['normal','happy','smug','despise','blink','wink','peek','think','surprise'];
 // 二级：必须等具体事件（声音、触摸、指令、时长…）才切，绝不随机播放
-const TIER2 = ['surprise','angry','cry','dizzy','love','speechless','think','sleep','shy','confused','rainbow'];
+// 无语 / 困惑是"半常态"：概率很低地出现在待机里，Agent 也能直接调
+const TIER2 = ['angry','cry','dizzy','love','speechless','sleep','shy','confused','rainbow','startle','angry2','nono','nonoBlink','dead','nod','glitch'];
 const MOOD_LIST = TIER1.concat(TIER2);
 
 let walkTimer=null;
