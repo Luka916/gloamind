@@ -48,20 +48,42 @@ A small glance is 81ms; a large swing is 136ms. Everything used to take a flat 2
 made large and small movements feel identical — the single biggest reason the motion looked
 fake.
 
-### 4. Dwell time is skewed, not uniform
+### 4. Half the ticks do nothing
 
-Biology: mode 230ms, mean 330ms, both tails rare. Implemented as the sum of three uniform
-randoms over 0.7–2.4s, which produces that middle-heavy shape for free.
+This is the rule that was missing, and it is the one that mattered most.
 
-Uniform randomness averages out to a metronome. That is one of the reasons a robot gets boring
-to watch: the rhythm is too even.
+There is a timer. When it fires, the first thing that happens is a coin flip: **50% of the time
+the correct action is no action at all**, and the timer simply extends. There is nothing to look
+at, so it keeps looking where it was looking.
 
-### 5. Central bias, plus habituation
+A creature that changes target every second is not alert, it is a random number generator with a
+servo attached. Attention is mostly *not* moving.
 
-- Straight ahead (the viewer's face) carries weight **8**; other spots 1–4. Most of the time,
-  it is looking at you.
-- The last three spots it visited get their weight divided by three, so it does not stare at
-  the same corner twice in a row. This is what "attention moves on" looks like in code.
+### 5. Walk along the clock face; never teleport
+
+The first attempt at "calm" kept the nine-spot interest table and just biased the choice toward
+nearby spots. It measured **3.27 clock steps per movement** — because nine spots on a twelve
+position ring means the neighbouring position often has no spot at all, so every jump was forced
+to be a long one. It still looked like teleporting.
+
+The fix was to stop choosing among spots. The gaze now **walks the ring one 30° step at a time**,
+and at each step it picks clockwise or anticlockwise with probability proportional to how
+worthwhile the destination is:
+
+```
+12 o'clock  6     3 o'clock  3     5, 7 o'clock  1
+ 1, 11      5     4, 8       2     6 o'clock     1
+ 2, 10      4     9 o'clock  3
+```
+
+So it drifts toward the upper half by itself — that is where a person is, if you are a robot the
+size of a hand — without a rule that forbids looking down. Measured after the change: **1.56
+steps per movement**, most of them a single step.
+
+Separately, 8% of movements go back to dead centre. That is the one deliberate, purposeful move
+in the whole engine: nothing is happening, so it checks whether you are still there. It also
+solves a geometry problem — the ring walk can never reach position 0, so without this the eyes
+would sit permanently 30° off-centre.
 
 ### 6. Breathe, even when idle
 
@@ -78,18 +100,23 @@ clip there — that is what the panel does, not an artefact of the screenshot. O
 firmware keeps the tilt offset inside the calibrated servo range, so the clip is only visible
 in the browser.
 
-| Where | Gaze direction | Pan offset | Tilt offset | Weight |
-|---|---|---|---|---|
-| **Straight ahead (you)** | centre | 0 | 0 | **8** |
-| **Straight up** | 12 o'clock | 0 | **−20° (looking up)** | **4** |
-| Up-right / up-left | 1:30 / 10:30 | ±13 | −7 | 3 / 3 |
-| Right / left | 3:00 / 9:00 | ±22 | 0 | 2 / 2 |
-| Down (the desk) | 6:00 | 0 | +13 | 1 |
-| Down-right / down-left | 4:30 / 7:30 | ±14 | +10 | 1 / 1 |
+| Direction | Weight | Pan / tilt offset |
+|---|---|---|
+| centre (you) | 6 | 0 / 0 |
+| 12 o'clock (straight up) | 6 | 0 / **−24°** |
+| 1, 11 o'clock | 5 | ±13 / −10 |
+| 2, 10 o'clock | 4 | ±22 / −6 |
+| 3, 9 o'clock | 3 | ±26 / 0 |
+| 4, 8 o'clock | 2 | ±22 / +6 |
+| 5, 7 o'clock | 1 | ±13 / +10 |
+| 6 o'clock (the desk) | 1 | 0 / +12 |
 
-Looking up gets the second-highest weight, deliberately: a small robot on a desk is *below*
-your eye level, so up is where the interesting thing is. Its old behaviour — stare straight
-ahead, occasionally look down at the table — read as bored.
+The head offsets are derived from the direction vector rather than typed in per spot:
+`pan = x·26`, `tilt = y·12`, with straight-up getting an extra push (−24°) because a small robot
+on a desk has to look *up* to see a face.
+
+Looking up still outweighs looking down heavily — not by a rule, but because the walk's weights
+make the upper half four to six times more likely to be stepped into.
 
 ## The touch cascade
 
@@ -107,22 +134,30 @@ reaction. The touch pin only accepts a rising edge, with a 1.4s cooldown.
 
 ## Measured result
 
-26 seconds, 174 samples, on hardware:
+Three builds, same board, 70–90 seconds each, sampling `dir=` and `pan=` from `i` four times a
+second (`tests/gaze_rhythm.py`):
 
-```
-pan   : −22° … +22° from centre      span 44°
-tilt  :  43° … 76°                   span 33°   (previously constant at 62°)
-gaze  : all 12 directions used
-looking up (<56°): 46/174 = 26% of the time
-```
+| | first attempt (nearby-biased spots) | after walk-the-ring | after the rest rule |
+|---|---|---|---|
+| gaze changes per minute | 9.4 | 7.2 | **3–4** |
+| clock steps per change | **3.27** | 1.56 | 1–3, mostly 1 |
+| pan span | 44° | 31° | 16–22° |
+| mood changes per minute | 15.4 | 15.2 | **5–11** |
+
+The version before any of this was worse than all three: a pick every ~1.5 s, uniform across all
+nine spots, head moving every time, roughly **40 changes per minute averaging 3+ steps**.
+
+What it does now, in words: it looks at you, mostly. Every 15–25 seconds it glances about 30° to
+one side and comes back. Twice a minute it drifts two steps. Three times an hour it goes
+somewhere else entirely. Between all of that it is completely still, and that is the point.
 
 | | Before | After |
 |---|---|---|
-| Vertical axis | constant 62°, never moved | 43–76°, 26% of the time above level |
+| Vertical axis | constant 62°, never moved | moves when the gaze crosses two steps |
 | Ordering | eye and head moved independently | eye lands, head follows 100–160ms later |
-| Dwell | fixed 2.5–6s | 0.7–2.4s, skewed short |
-| Repeats | yes (uniform random) | no (last 3 spots de-weighted) |
-| At rest | completely still | 1.2° breathing drift |
+| Small saccades | head moved anyway | eye only — under 4°, a cat does not move its head |
+| Time between changes | ~1.5 s | 15–25 s |
+| At rest | never at rest | still 50% of the time |
 
 ## Honest limitations
 
@@ -130,7 +165,7 @@ looking up (<56°): 46/174 = 26% of the time
 |---|---|---|
 | No roll axis | cannot do a real head tilt | needs a third servo |
 | No camera | "what it is looking at" is a hard-coded table, not vision | an OV2640 would make it real |
-| 12 discrete gaze directions | the eye only points at multiples of 30°, not continuously | needs vector-based rendering |
+| 12 discrete gaze directions | the eye only points at multiples of 30°, not continuously — which is also why the walk has to be stepwise | needs vector-based rendering |
 | Fixed servo speed | large turns have no "throw" | needs amplitude-scaled PWM stepping |
 
 The last row matters most, so it is worth saying plainly: **this looks like it has intent, it
@@ -141,6 +176,6 @@ the habituation and the central bias are right — not because it can see.
 
 | File | Contents |
 |---|---|
-| `firmware/pet_eye/pet_eye.ino` | `GAZE_SPOTS[]`, `gazePick()`, `gazeMicro()`, `handleTouch()` |
+| `firmware/pet_eye/pet_eye.ino` | `DIR_W[]`, `dirToNeck()`, `gazePick()`, `handleTouch()` |
 | same | deferred head motion (`g_neckPend` / `g_neckLag`), the breathing term |
 | `PIN_TOUCH 13` | the pat sensor |

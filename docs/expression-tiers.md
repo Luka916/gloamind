@@ -44,10 +44,17 @@ a power cut.
 
 ```
 0 – 90 s    awake, idle pool as normal
- 90 s       drowsy: eyes close for ~1 s, open for ~1.5 s, repeat
- 3rd blink  does not open again -> sleep, head sags, gaze stops moving
+ 90 s       1st blink, 1.2 s closed, 1.6 s open
+            2nd blink, 2.1 s closed, 1.2 s open      <- the lids are getting heavier
+            3rd blink, 3.0 s closed                    <- does not open again
+ asleep     head sags 9°, gaze freezes, and it stays in whatever direction it fell asleep in
  any touch  startle (not happy) -> back to normal after ~2 s
 ```
+
+The blinks lengthen and the open intervals shorten, because that is what falling asleep looks
+like. Sleeping does *not* recentre the neck: a creature falls asleep facing wherever it happened
+to be facing, and being rotated back to straight-ahead first would read as a machine parking
+itself.
 
 Two details that matter:
 
@@ -140,6 +147,10 @@ x 14
 `2026-11-16 15:05` — first split. The idle pool had held everything that could sit still for a few
 seconds (happy, shy, cry, angry, rainbow, dizzy). The rainbow appeared every few minutes, which
 made it wallpaper, and it buried the causality of the touch reactions.
+
+`2026-11-16 17:00` — sleep direction and the blink progression. `angry2` removed from the
+random small-action pool (it was firing with no cause, which is exactly what this whole document
+is against). Probabilities moved to 84 / 8 / 8.
 
 `2026-11-16 16:20` — expanded on request. Tier I went from 6 to 9 (`happy`, `smug`, `despise`,
 `surprise` in; `sleep` moved out of the pool and into the ladder above). `speechless` and

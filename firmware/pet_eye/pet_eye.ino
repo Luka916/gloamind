@@ -322,8 +322,10 @@ static const uint8_t IDLE_POOL[] = {
    太久没人理，会有点无语 / 有点困惑；以后 Agent 也能直接调。概率压得很低。 */
 static const uint8_t IDLE_RARE[] = { M_SPEECHLESS, M_CONFUSED };
 /* 事件池：一下就走、看完自己回 normal 的。属于 II 类，但可以由 idle 偶发取用，
-   因为它们自带回位、不会停在屏幕上变成"卡住的怪表情"。 */
-static const uint8_t EVENT_POOL[] = { M_NOD, M_NONO, M_STARTLE, M_ANGRY2 };
+   因为它们自带回位、不会停在屏幕上变成"卡住的怪表情"。
+   angry2 曾经也在这里，删掉了 —— 它是"被摸了 12 下之后"的反应，凭空出现等于
+   无缘无故冲你发火，跟"情绪要有由来"直接冲突。 */
+static const uint8_t EVENT_POOL[] = { M_NOD, M_NONO, M_STARTLE };
 
 // ---------------- 命令通道 ----------------
 /* 一句话回给"当前说话的人"：串口照常打印，蓝牙顺手攒进 g_reply 一起发回去。
@@ -939,20 +941,23 @@ static void autoMood(uint32_t now) {
   if (idle > 180000) idle = 180000;                     // 3 分钟封顶，防溢出乱来
 
   if (idle > 90000) {
-    if (g_moodId == M_BLINK) {                          // 刚闭完这一下
+    /* 眼皮越来越重：每次合得更久，睁开的间隔越来越短。
+       第一次 1.2 秒，第二次 2.1 秒，第三次就合不上了。 */
+    int k = (int)g_drowseBlink;                              // 0,1,2
+    if (g_moodId == M_BLINK) {                               // 刚闭完这一下
       g_drowseBlink++;
-      if (g_drowseBlink >= 3) {                         // 第三下没睁开 = 睡着
+      if (g_drowseBlink >= 3) {                              // 第三次没睁开 = 睡着
         g_asleep = true;
         faceSetMood(M_SLEEP, 1.0f);
-        g_nextMood = now + 3600000;                     // 睡着了就别再换表情
+        g_nextMood = now + 3600000;                          // 睡着了就别再换表情
         Serial.println("idle -> sleep");
         return;
       }
-      faceSetMood(M_NORMAL, 1.0f);                      // 又睁开一下
-      g_nextMood = now + 1000 + random(0, 900);
+      faceSetMood(M_NORMAL, 1.0f);                           // 又睁开一下
+      g_nextMood = now + 1600 - k * 400 + random(0, 600);
     } else {
-      faceSetMood(M_BLINK, 1.0f);                       // 眼皮撑不住了
-      g_nextMood = now + 800 + random(0, 600);
+      faceSetMood(M_BLINK, 1.0f);                            // 这一下比上一下更久
+      g_nextMood = now + 1200 + k * 900 + random(0, 500);
     }
     return;
   }
@@ -960,7 +965,8 @@ static void autoMood(uint32_t now) {
   int n;
   int r = random(0, 100);
   bool ev   = r < 8;                                    // 8% 小动作（点头/摇头/一惊）
-  bool rare = !ev && r < 20;                            // 12% 半常态（无语/困惑）
+  bool rare = !ev && r < 16;                            // 8% 半常态（无语/困惑）
+                                                        // 剩下 84% 常态九选一
   for (int tries = 0; tries < 3; tries++) {
     n = ev   ? (int)EVENT_POOL[random(0, sizeof(EVENT_POOL))]
       : rare ? (int)IDLE_RARE[random(0, sizeof(IDLE_RARE))]
@@ -970,7 +976,7 @@ static void autoMood(uint32_t now) {
   if (ev)                g_nextMood = now + 1600 + random(0, 1200);  // 让事件先演完再换
   else if (rare)         g_nextMood = now + 3000 + random(0, 2500);
   else if (n == M_BLINK) g_nextMood = now + 1100 + random(0, 900);   // 闭眼不能站太久
-  else                   g_nextMood = now + 3200 + random(0, 3800);
+  else                   g_nextMood = now + 5500 + random(0, 6500);   // 5.5~12s：一个表情能挂住
   faceSetMood(n);
 }
 
@@ -991,34 +997,27 @@ static void autoMood(uint32_t now) {
 
 struct GazeSpot { int8_t dir; int8_t dPan; int8_t dTilt; uint8_t w; };
 
-/* 兴趣点表。dir 用时钟索引（0 中 / 1 十二点 / 4 三点 / 7 六点 / 10 九点），
-   dPan / dTilt 是相对"平视正视"的偏移。w 是权重 —— 
-   正前方给 8 是故意的：人和动物都最容易看"中间那个东西"（中心偏置）。 */
-static const GazeSpot GAZE_SPOTS[] = {
-  /* 权重设计：抬头 13 / 平视 11 / 低头 6（合计 30）→ 抬头 43%、平视 37%、低头 20%。
-     为什么不平均：它只有巴掌大，面对的是一个比它大十几倍的活人 ——
-     现实中它绝大部分时间应该**仰视**你，而不是低头看桌面。
-     （你原话：去一个很美的地方你会抬头看，不会低头看。）
-     低头只留给"看桌上的东西"，占两成多一点，够表示"这里也有东西可看"。 */
-  { 1,    0, -26, 5 },   // 正上方：明显抬头 + 瞪眼（好奇的最高档）
-  { 2,   13, -10, 4 },   // 右上：仰视
-  {12,  -13, -10, 4 },   // 左上：仰视
-  { 0,    0,  -3, 7 },   // 正前方：看你（略仰 —— 你的脸在它上方）
-  { 4,   22,   0, 2 },   // 右
-  {10,  -22,   0, 2 },   // 左
-  { 7,    0,  14, 2 },   // 下方：看桌面
-  { 6,   14,  10, 2 },   // 右下
-  { 8,  -14,  10, 2 },   // 左下
+/* 2026-11-16 17:0x：原来这里是 9 个"兴趣点"，从里面随机抽一个跳过去。
+   问题在于钟面上只有 9 个点、12 个位置，相邻位置经常没有点可选 ——
+   于是每次跳都跨 3 格以上，看着就是"左上、右下、左上"。实测平均跨 3.27 格。
+
+   现在改成：沿着钟面**一步一格**地走，方向按"哪个方向更值得看"加权 ——
+   它就会顺着边缘挪过去，而不是瞬移。变成真正的 scanpath（Noton & Stark 1971：
+   注视路径是重复的、连续的序列，不是逐个独立的随机点）。
+   下面这张表只剩一件事：每个时钟方向"有多值得看"。
+   它面对的是比它大十几倍的活人，所以上半圈权重高得多。 */
+static const uint8_t DIR_W[13] = {
+  /* 0 中 */ 6,
+  /* 1 十二点 */ 6, /* 2 一点 */ 5, /* 3 两点 */ 4,
+  /* 4 三点 */ 3,   /* 5 四点 */ 2, /* 6 五点 */ 1,
+  /* 7 六点 */ 1,   /* 8 七点 */ 1, /* 9 八点 */ 2,
+  /* 10 九点 */ 3,  /* 11 十点 */ 4, /* 12 十一点 */ 5
 };
-#define N_SPOT ((int)(sizeof(GAZE_SPOTS) / sizeof(GAZE_SPOTS[0])))
 
 static uint32_t g_gazeAt   = 0;      // 下一次换注视点
 static uint32_t g_neckLag  = 0;      // 头开始动的时刻（眼先头后）
 static bool     g_neckPend = false;
 static float    g_pendPan  = 0, g_pendTilt = 0;
-static uint32_t g_microAt  = 0;      // 注视中的微扫视
-static uint8_t  g_recent[3] = {0, 0, 0};
-static uint8_t  g_recentI  = 0;
 
 /* 时钟圈上的距离（1 到 6，越过 12 点算最短） */
 static int dirRingDist(int a, int b) {
@@ -1027,55 +1026,114 @@ static int dirRingDist(int a, int b) {
   return (d > 6) ? (12 - d) : d;
 }
 
+/* 方向 → 头该去哪（相对平视）。和原来兴趣点表里的数一致：
+   3 点方向 pan +26、12 点方向 tilt -12；正上方额外多抬一点（它得仰视人）。 */
+static void dirToNeck(int d, float &pan, float &tilt) {
+  pan  = (float)g_panHome  + DIRS[d].x * 26.0f;
+  tilt = (float)g_tiltHome + DIRS[d].y * 12.0f;
+  if (d == 1) tilt = (float)g_tiltHome - 24.0f;
+  pan  = (float)constrain(pan,  (float)g_panLo,  (float)g_panHi);
+  tilt = (float)constrain(tilt, (float)g_tiltLo, (float)g_tiltHi);
+}
+
+/* ==================== 注视节律 ====================
+   2026-11-16 17:0x 重做（第二次，第一次不够）。
+
+   用户的原话："它现在频率太高、总是东张西望、没有目的性，像一个随机程序在抽搐。"
+
+   文献（都是实测数据）：
+   · 静止的猫平均注视 ~303ms、约 2.7 次/秒（Collewijn 1971，
+     经 Fowler et al. 2009 引用）。听起来快，但那是**眼睛**在小范围里跳，
+     而且：
+   · 猫的眼睛偏离中线不超过 20°，能"hold fixation quite constant for up to
+     several seconds"——一个注视保持好几秒（Stryker & Blakemore 1972）。
+   · 4° 以上的扫视几乎都带头转，头滞后约 30ms；**小于 4° 的扫视不带头**
+     （Blakemore & Donaghy 1980）。
+   · 注视路径是**连续的、可重复的序列**，不是一个一个独立的随机点
+     （Noton & Stark 1971，scanpath）。
+
+   → 所以真正的形状是：大部分时间不动；动的时候只挪一点；挪的方向有偏好；
+     头只在眼睛快跟不上时才补。原来是反的：每 1~2 秒动一次、每次跨 3 格以上、
+     每次还带舵机一起转 —— 看着就是个随机数生成器。
+
+   这一版做四件事：
+     ① 50% 的节拍什么都不做
+     ② 动就沿钟面**走一格**（30°），偶尔两格，很少三格以上
+     ③ 往哪个方向走，按"那边更值得看"加权 → 它自然往上半圈（你脸上）聚
+     ④ 一格只动眼，两格以上或眼睛偏出 14° 才让头跟                          */
 static void gazePick(uint32_t now) {
-  /* 权重里扣掉"最近看过的三个位置"——这就是习惯化：
-     同一个地方连着看会腻，真实动物也是这样，不然看着像随机数。 */
-  int w[N_SPOT], total = 0;
-  for (int i = 0; i < N_SPOT; i++) {
-    w[i] = GAZE_SPOTS[i].w;
-    for (int k = 0; k < 3; k++)
-      if (g_recent[k] == i && w[i] > 1) w[i] /= 3;
-    total += w[i];
+  int r = random(0, 100);
+
+  /* ① 一半的节拍：什么都不做，接着看刚才那处 */
+  if (r < 50) {
+    g_gazeAt = now + 2200 + random(0, 4200);
+    return;
   }
-  int r = random(0, total), acc = 0, pick = 0;
-  for (int i = 0; i < N_SPOT; i++) { acc += w[i]; if (r < acc) { pick = i; break; } }
-  g_recent[g_recentI] = (uint8_t)pick;
-  g_recentI = (uint8_t)((g_recentI + 1) % 3);
 
-  const GazeSpot &s = GAZE_SPOTS[pick];
-  int dist = dirRingDist(g_dirIdx, s.dir);
+  /* ② 15% 的节拍：回到正前方看你一眼。
+     这是整段里唯一"有目的"的动作 —— 没东西可看的时候，活物会回头确认那个人
+     还在不在。也顺手解决一个几何问题：钟面上的走动到不了 0 号（正中），
+     没有这一步，它的眼睛会永远偏 30°。 */
+  int cur;
+  int dist;
+  if (r < 58) {
+    cur  = 0;
+    dist = 3;                                   // 中枢 → 正中，按中等幅度算
+  } else {
+    /* ③ 走几步：一格 30°，偶尔两格，很少三格以上 */
+    int step;
+    if (r < 86)      step = 1;                  // 28%：一格（30°），只动眼
+    else if (r < 97) step = 2;                  // 11%：两格，头轻微跟
+    else             step = 3 + random(0, 3);   //  3%：换了主意，去看另一片
 
-  /* Main sequence：幅度越大，动作持续越久（但速度也更快）。
-     生物 2.1ms/度递增、20° 约 110ms；我们一格约合 2.5°，取 70 + 11×格。 */
-  faceSetDir(s.dir, 70.0f + 11.0f * (float)dist);
+    cur = g_dirIdx;
+    if (cur < 1) cur = random(0, 2) ? 1 : 12;   // 在正中时先挑一个斜上方起步
 
-  /* ① 眼睛先到 ② 头 100~160ms 后才开始转。
-     生物是 20~40ms，但舵机有惯性，间隔太短就看不出"眼先头后"这个层次。 */
-  g_pendPan  = (float)constrain(g_panHome  + s.dPan,  g_panLo,  g_panHi);
-  g_pendTilt = (float)constrain(g_tiltHome + s.dTilt, g_tiltLo, g_tiltHi);
-  g_neckPend = true;
-  g_neckLag  = now + 100 + random(0, 60);
+    /* 每一步的走向按目标位置的权重掷骰子 —— 往上半圈走的概率更大。
+       不是"禁止往下看"，而是"往下看要更偶然"。 */
+    for (int i = 0; i < step; i++) {
+      int cwIdx  = ((cur - 1 + 1)  % 12) + 1;
+      int ccwIdx = ((cur - 1 + 11) % 12) + 1;
+      int wCw = DIR_W[cwIdx], wCcw = DIR_W[ccwIdx];
+      bool goCw = (random(0, wCw + wCcw) < wCw);
+      cur = goCw ? cwIdx : ccwIdx;
+    }
+    dist = dirRingDist(g_dirIdx, cur);
+  }
 
-  /* 抬头时顺手把表情带上去：好奇本来就是"抬头 + 瞪眼"一起发生的，
-     分开演就变成两件事了。只在 normal 时改，别打断正在演的表情。 */
-  if (s.dTilt <= -12 && faceMoodId() == M_NORMAL) faceSetMood(M_PEEK, 300);
+  /* Main sequence：幅度越大，动作越久（生物 2.1ms/度、20° 约 110ms）。 */
+  faceSetDir(cur, 70.0f + 11.0f * (float)dist);
 
-  /* 注视时长：右偏分布，取 0.7~2.4 秒。人类是 240~330ms，
-     但我们没有真实世界可看，停久一点才像"在盯着什么"。 */
-  g_gazeAt  = now + 700 + random(0, 900) + random(0, 800);
-  g_microAt = now + 900 + random(0, 700);
+  /* ④ 头该不该跟上：一格只动眼（猫的 4° 以下扫视不带头）；
+     两格以上、或者眼睛已经偏出头 14° 了才补。 */
+  float wantPan, wantTilt;
+  dirToNeck(cur, wantPan, wantTilt);
+  bool needHead = (dist >= 2)
+               || (fabsf(wantPan  - g_neckTgt) > 14.0f)
+               || (fabsf(wantTilt - g_tiltTgt) > 10.0f);
+  if (needHead) {
+    g_pendPan  = wantPan;
+    g_pendTilt = wantTilt;
+    g_neckPend = true;
+    g_neckLag  = now + 100 + random(0, 60);      // 眼先头后
+  } else {
+    g_neckPend = false;                          // 这一下只动眼
+  }
+
+  /* 抬头时顺手把表情带上去：好奇本来就是"抬头 + 瞪眼"一起发生的。 */
+  if (needHead && wantTilt <= (float)g_tiltHome - 14.0f && faceMoodId() == M_NORMAL)
+    faceSetMood(M_PEEK, 300);
+
+  /* ⑤ 注视时长：一格 2~5 秒，走得远一点就停久一点。
+     猫的 303ms 是**主动观察**（有猎物、有动静）；这里没东西可看，
+     长时间盯着才是常态。 */
+  g_gazeAt = now + 1900 + 700 * dist + random(0, 2500);
 }
 
-/* 注视不是完全静止的：真实眼睛有微扫视（1~2Hz，幅度极小）。
-   我们最小只有一格（30°），所以做得很少、很轻，只为"没死"。 */
-static void gazeMicro(uint32_t now) {
-  if (g_dirIdx >= 1) {
-    int step = random(0, 2) ? 1 : 11;
-    int d = ((g_dirIdx - 1 + step) % 12) + 1;
-    faceSetDir(d, 120.0f);
-  }
-  g_microAt = now + 900 + random(0, 800);
-}
+/* 原来这里还有一个 gazeMicro（每 1 秒左右把眼睛挪 ±1 格当"微扫视"）。
+   删掉了：真实的微扫视只有 0.5° 左右，而我们最小的步长是 30° ——
+   那不是微扫视，是每秒钟扭头看一眼旁边，正是"东张西望"的主要来源。
+   现在靠 gazePick 里的 40% 空转 + 邻域加权来构成"安静地看"。 */
 
 /* ==================== 摸太多次会烦 ====================
    不是拍脑袋定的数，三条都能查到出处：
@@ -1118,16 +1176,15 @@ static void autoBehavior(uint32_t now) {
 
   if (!g_auto) return;
 
-  /* 睡着了就别再东张西望 —— 眼睛乱瞟的机器人看起来不像睡着，像宕机。
-     头慢慢垂下去，视线定在原地。被摸或收到命令才会醒（见 handleTouch / execCommand）。 */
+  /* 睡着了就别再东张西望 —— 眼睛乱瞟的机器人看起来不像睡着，像宕机。 */
   if (g_asleep) {
-    g_neckTgt = (float)g_panHome;
+    /* 不把脖子扳回正中：它困在哪个方向就在哪个方向睡着。
+       动物不会"先回正再睡"，我们也不该。只让头慢慢往下沉一点（睡着肌肉放松）。 */
     g_tiltTgt = (float)constrain(g_tiltHome + 9, g_tiltLo, g_tiltHi);
     return;
   }
   if ((int32_t)(now - g_nextMood) >= 0) autoMood(now);
-  if ((int32_t)(now - g_gazeAt) >= 0)   gazePick(now);
-  else if ((int32_t)(now - g_microAt) >= 0) gazeMicro(now);
+  if ((int32_t)(now - g_gazeAt) >= 0) gazePick(now);
 }
 
 /* ==================== 头顶触摸 ====================
