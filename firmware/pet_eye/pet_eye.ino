@@ -291,6 +291,9 @@ static bool     g_asleep      = false;
 
 /* ---- 摸太多次会烦（数字出处见下面 petTally） ---- */
 static uint8_t  g_petCount = 0;
+/* 温存链：摸第 2~3 下 -> love（爱心）；停手后 love 先淡成 happy，再缓成 normal。
+   两段都用 700ms 插值，所以是"渐渐退去"，不是啪一下换脸。 */
+static uint32_t g_warmAt   = 0;
 static uint32_t g_petWin   = 0;
 
 /* ==================== 表情分三层 ====================
@@ -307,15 +310,19 @@ static uint32_t g_petWin   = 0;
        永不随机出现。这是"跟它互动它才给表情"。
    第 III 类 彩蛋——不进任何池子，靠隐藏手势触发，见 handleTouch 末尾。
        故意不写进帮助、不写进文档：要自己玩出来才算彩蛋。 */
+/* 2026-11-16 17:1x 调整：
+   · wink（单眼眨）移出常态 —— 用户明确不喜欢"一横一竖"，动物也不会这样。
+     表情本身保留，`m wink` 还能手动调、网页上还在，只是不再自己冒出来。
+   · 权重从 9 个摊到 8 个：peek / think 各加一份，热闹一点。 */
 static const uint8_t IDLE_POOL[] = {
-  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,   // 约 33%：大部分时间就是它
+  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,             // 8 份 ≈ 44%：大部分时间就是它
+  M_NORMAL, M_NORMAL, M_NORMAL, M_NORMAL,
   M_HAPPY,  M_HAPPY,                                  // 开心
   M_BLINK,  M_BLINK,                                  // 闭眼：合上歇一会儿
   M_SMUG,                                             // 得意
   M_DESPISE,                                          // 轻视
-  M_WINK,                                             // 单眼眨
-  M_PEEK,                                             // 偷看
-  M_THINK,                                            // 发呆
+  M_PEEK,  M_PEEK,                                    // 偷看（wink 已移出，见下）
+  M_THINK,                                            // 发呆（原来 ×2，实测比 normal 还多，降回 1）
   M_SURPRISE,                                         // 大眼睛
 };
 /* 半常态：既不是"没事就在那儿"，也不是"必须有事件"。
@@ -932,6 +939,14 @@ void setup() {
    固定 3 秒一次会读出"定时器"的味道，随机反而像在发呆。
    一旦从串口发命令，自动模式立刻关闭，交还手动控制。 */
 static void autoMood(uint32_t now) {
+  /* 温存链没走完之前，不许抽新表情。
+     实测：爱心 2.6s 降成笑脸后，自动模式 3.2s 就把它抽成了"发呆"，
+     笑脸一闪而过 —— 这条链要连着演完才算数。 */
+  if (g_warmAt) {
+    g_nextMood = now + 200;          // 200ms 后再看，别每帧空转
+    return;
+  }
+
   /* ---- 三级递进：清醒 → 困（闭眼）→ 睡着 ----
      直接跳 sleep 会读成"突然关机"。合眼一下、再合一下、第三下没睁开，
      才像真的困了。这三个数字是手感，不是文献：90 秒开始困、
@@ -964,8 +979,8 @@ static void autoMood(uint32_t now) {
 
   int n;
   int r = random(0, 100);
-  bool ev   = r < 8;                                    // 8% 小动作（点头/摇头/一惊）
-  bool rare = !ev && r < 16;                            // 8% 半常态（无语/困惑）
+  bool ev   = r < 11;                                   // 11% 小动作（点头/摇头/一惊）
+  bool rare = !ev && r < 18;                            //  7% 半常态（无语/困惑）
                                                         // 剩下 84% 常态九选一
   for (int tries = 0; tries < 3; tries++) {
     n = ev   ? (int)EVENT_POOL[random(0, sizeof(EVENT_POOL))]
@@ -976,7 +991,7 @@ static void autoMood(uint32_t now) {
   if (ev)                g_nextMood = now + 1600 + random(0, 1200);  // 让事件先演完再换
   else if (rare)         g_nextMood = now + 3000 + random(0, 2500);
   else if (n == M_BLINK) g_nextMood = now + 1100 + random(0, 900);   // 闭眼不能站太久
-  else                   g_nextMood = now + 5500 + random(0, 6500);   // 5.5~12s：一个表情能挂住
+  else                   g_nextMood = now + 3800 + random(0, 4200);   // 3.8~8s：活泼档
   faceSetMood(n);
 }
 
@@ -1064,9 +1079,9 @@ static void dirToNeck(int d, float &pan, float &tilt) {
 static void gazePick(uint32_t now) {
   int r = random(0, 100);
 
-  /* ① 一半的节拍：什么都不做，接着看刚才那处 */
-  if (r < 50) {
-    g_gazeAt = now + 2200 + random(0, 4200);
+  /* ① 三分之一的节拍什么都不做。50% 时像老年猫，34% 是"活泼但没抽风"的位置。 */
+  if (r < 34) {
+    g_gazeAt = now + 1500 + random(0, 2400);
     return;
   }
 
@@ -1074,15 +1089,24 @@ static void gazePick(uint32_t now) {
      这是整段里唯一"有目的"的动作 —— 没东西可看的时候，活物会回头确认那个人
      还在不在。也顺手解决一个几何问题：钟面上的走动到不了 0 号（正中），
      没有这一步，它的眼睛会永远偏 30°。 */
+  /* 实际占比 = (42-34)/66 ≈ 8%，不是注释里写的 15%。
+     原来写 r<58，等于 24% 的扫视都在"回正"——实测下来 pan 老是被拉回 0，
+     睡觉时就成了正襟危坐。降下来。 */
+  bool reCentre = (r < 42);
+
+  /* 困了（60 秒没互动）就不再回头确认你在不在 —— 快睡着的猫不巡视。
+     这条同时修掉了睡姿：回正会把脖子一起拉回正中，于是"先回正再睡"。 */
+  if (reCentre && (uint32_t)(now - g_lastPet) > 60000) reCentre = false;
+
   int cur;
   int dist;
-  if (r < 58) {
+  if (reCentre) {
     cur  = 0;
     dist = 3;                                   // 中枢 → 正中，按中等幅度算
   } else {
     /* ③ 走几步：一格 30°，偶尔两格，很少三格以上 */
     int step;
-    if (r < 86)      step = 1;                  // 28%：一格（30°），只动眼
+    if (r < 88)      step = 1;                  // 54%：一格（30°），只动眼
     else if (r < 97) step = 2;                  // 11%：两格，头轻微跟
     else             step = 3 + random(0, 3);   //  3%：换了主意，去看另一片
 
@@ -1127,7 +1151,7 @@ static void gazePick(uint32_t now) {
   /* ⑤ 注视时长：一格 2~5 秒，走得远一点就停久一点。
      猫的 303ms 是**主动观察**（有猎物、有动静）；这里没东西可看，
      长时间盯着才是常态。 */
-  g_gazeAt = now + 1900 + 700 * dist + random(0, 2500);
+  g_gazeAt = now + 1200 + 480 * dist + random(0, 1600);   // 1.2~3.9s，比安静档短一半
 }
 
 /* 原来这里还有一个 gazeMicro（每 1 秒左右把眼睛挪 ±1 格当"微扫视"）。
@@ -1174,6 +1198,24 @@ static void autoBehavior(uint32_t now) {
     }
   }
 
+  /* 温存链：love 到点降成 happy，happy 到点再降成 normal，两段都是 700ms 插值。
+     爱心不是"消失"，是慢慢褪成一个笑脸，再褪回平时的样子。
+     放在 g_auto 判断之前：手动模式下摸完也该自己退，不然会定在那儿。 */
+  if (g_warmAt && (int32_t)(now - g_warmAt) >= 0) {
+    if (g_moodId == M_LOVE) {
+      faceSetMood(M_HAPPY, 700.0f);
+      g_warmAt = now + 2200;
+      Serial.println("warm -> happy");
+    } else if (g_moodId == M_HAPPY || g_moodId == M_SHY) {
+      faceSetMood(M_NORMAL, 700.0f);
+      g_warmAt = 0;
+      g_nextMood = now + 2600;      // 回正常后先安静一会儿，别立刻抽新表情
+      Serial.println("warm -> normal");
+    } else {
+      g_warmAt = 0;                 // 期间被别的表情顶掉（生气/彩蛋），链就断掉
+    }
+  }
+
   if (!g_auto) return;
 
   /* 睡着了就别再东张西望 —— 眼睛乱瞟的机器人看起来不像睡着，像宕机。 */
@@ -1184,7 +1226,11 @@ static void autoBehavior(uint32_t now) {
     return;
   }
   if ((int32_t)(now - g_nextMood) >= 0) autoMood(now);
-  if ((int32_t)(now - g_gazeAt) >= 0) gazePick(now);
+
+  /* 困了（90 秒没互动）就不再换注视点 —— 睡着那一刻朝向哪就停在哪。
+     以前困着还在扫视，睡着方向是随机的，看起来像"被摆正了"。 */
+  bool drowsy = (uint32_t)(now - g_lastPet) > 90000;
+  if (!drowsy && (int32_t)(now - g_gazeAt) >= 0) gazePick(now);
 }
 
 /* ==================== 头顶触摸 ====================
@@ -1259,6 +1305,16 @@ static void petReact(uint32_t now, bool head) {
     g_neckTgt = (float)g_panHome;
     g_gazeAt  = now + 1600;
     Serial.println(head ? "touch head (angry)" : "touch chin (angry)");
+  } else if (n >= 2 && n <= 3) {
+    /* 第 2~3 下：喜欢上了 —— 爱心起来，头往你手上靠。
+       再往下摸就烦了（第 4 下 despise），所以这一段只有两下的窗口。 */
+    faceSetDir(0, 120.0f);
+    faceSetMood(M_LOVE, 320.0f);
+    g_tiltTgt = (float)constrain(g_tiltHome - (head ? 9 : 3), g_tiltLo, g_tiltHi);
+    g_neckTgt = (float)constrain(g_panHome + (head ? 0 : 14), NECK_MIN, NECK_MAX);
+    g_gazeAt  = now + 2400;
+    g_warmAt  = now + 2600;                 // 2.6 秒后开始退：love -> happy -> normal
+    Serial.println(head ? "touch head (love)" : "touch chin (love)");
   } else if (n >= 4) {
     /* 第 4 下：第一次不耐烦 —— 不抬头了，眼睛溜走 */
     if (head) faceSetDir(3, 320.0f);        // 眼睛往右移开，不看你
@@ -1283,6 +1339,9 @@ static void petReact(uint32_t now, bool head) {
     g_gazeAt   = now + 1800;
     Serial.println("touch chin");
   }
+
+  /* 第 1 下也把温存链起点立好：只摸一下不动它，它自己会笑一会儿再回神。 */
+  if (!g_warmAt) g_warmAt = now + 3000;
 
   /* 反应别被自动模式下一帧就盖掉 */
   if (g_auto) g_nextMood = now + 2200;

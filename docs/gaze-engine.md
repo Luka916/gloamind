@@ -80,10 +80,18 @@ So it drifts toward the upper half by itself — that is where a person is, if y
 size of a hand — without a rule that forbids looking down. Measured after the change: **1.56
 steps per movement**, most of them a single step.
 
-Separately, 8% of movements go back to dead centre. That is the one deliberate, purposeful move
-in the whole engine: nothing is happening, so it checks whether you are still there. It also
+Separately, about 8% of movements go back to dead centre. That is the one deliberate, purposeful
+move in the whole engine: nothing is happening, so it checks whether you are still there. It also
 solves a geometry problem — the ring walk can never reach position 0, so without this the eyes
 would sit permanently 30° off-centre.
+
+The first implementation of this had a bug worth recording: the guard was written as `r < 58`
+after a `r < 34` early-return, which is not 8% but **24%** of all saccades. The neck was being
+dragged back to straight ahead once every few seconds, and because that was also the last thing
+to happen before the drowsy threshold, the robot reliably fell asleep facing exactly forward —
+sitting to attention instead of slumped. Two fixes: the threshold moved to `r < 42`, and the
+re-centring move is suppressed entirely after 60 s without interaction. Measured afterwards,
+`pan` is non-zero in 85% of samples and sleep lands at `pan=13` rather than `pan=0`.
 
 ### 6. Breathe, even when idle
 
